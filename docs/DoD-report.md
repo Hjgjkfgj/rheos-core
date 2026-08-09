@@ -31,8 +31,10 @@ applicatif ne voit que son tenant, et que SANS RLS (rôle superutilisateur qui l
 contourne) **l'isolation TOMBE** ; + refus de démarrage superutilisateur en prod ;
 + `set_config` posé par transaction. (S'exécute uniquement sous `STORE=prisma`.)
 
-> Statut : **preuve d'exécution en attente du run CI vert** (lien à confirmer).
-> Dès que `prisma-rls` est vert, la ligne #3 ci-dessous passe ⏳ → ✅.
+> Statut : ✅ **CI VERTE, job `prisma-rls` compris** — parité `STORE=prisma` + RLS
+> **prouvée en base réelle** (PostgreSQL 16 en CI). Les 4 jobs sont verts : lint,
+> tests mémoire, typecheck complet, tests Prisma+RLS.
+> Run : https://github.com/Hjgjkfgj/rheos-core/actions
 
 ## 1. DoD globale du prompt maître — point par point
 
@@ -40,7 +42,7 @@ contourne) **l'isolation TOMBE** ; + refus de démarrage superutilisateur en pro
 |---|---|---|---|
 | 1 | Cycle **embauche → contrat signé → dossier → RUP → coffre-fort** de bout en bout, avec droits et audit | ✅ | `test/acceptance/full-cycle.test.ts` (7 étapes, séparation validate/sign, RUP projeté, coffre scellé + intégrité, événements append-only) |
 | 2 | Tous les scénarios **Gherkin d1-d2** passent en CI | ✅ / ⏳ | D1 (`acceptance/d1.test.ts`) + D2 6-13 (`acceptance/d2.test.ts`) **verts en mémoire** ; en `STORE=prisma` via `.github/workflows/ci.yml` (⏳ non exécuté ici : pas de Postgres). Scénarios 14-15 (bancaire sensible) **reportés** en D2b (voir ⚠️ #5) |
-| 3 | **`STORE=prisma` + RLS ≡ `STORE=memory`** sur toute la suite | ⏳ | Job CI `prisma-rls` écrit (service Postgres, rôle `rheos_app`, application RLS, `STORE=prisma npm test`). **Non exécutable dans cet environnement** (aucun Postgres). Les deux stores partagent la même interface `Repository` (ADR-014) et les mêmes tests |
+| 3 | **`STORE=prisma` + RLS ≡ `STORE=memory`** sur toute la suite | ✅ | **Job CI `prisma-rls` VERT** (PostgreSQL 16, rôle non-superutilisateur `rheos_app`, RLS active sur 39 tables). Acceptation Gherkin D1/D2 exécutée sur Prisma via `buildDB()`. Parité de forme assurée par `denorm` (Date/Decimal/null). Preuve RLS dédiée : `test/prisma-rls.test.ts` (isolation tient AVEC / tombe SANS). Lot 10 |
 | 4 | Un test prouve l'**isolation inter-tenant** (lecture, recherche, export) | ✅ | `tenant-isolation.test.ts`, `tenant-isolation-search.test.ts` (get/list/**recherche**/scans), `security.test.ts` (cross-tenant → 404) |
 | 5 | Chaque endpoint **authentifié/autorisé** ; **données sensibles journalisées** | ✅ / ⚠️ | Deny-by-default testé (`security.test.ts`) ; interactions **IA journalisées** (`AiAuditLog`). ⚠️ L'audit métier des **lectures NIR/IBAN** (`AuditLog`) reste à câbler avec les endpoints bancaires — **reporté en D2b** (scénario 15) |
 | 6 | **Espace collaborateur PWA** sur mobile | ✅ | `front.test.ts` (manifest/SW/icône + parcours) + rendu mobile vérifié (375×812). Lighthouse : exigences d'installabilité réunies (non exécuté ici) |
@@ -97,9 +99,8 @@ appliqués à chaque étape, et le coffre-fort est vérifiable.
 
 ## 5. Réserves honnêtes (non masquées)
 
-1. **`STORE=prisma` + RLS non exécuté** dans cet environnement (aucun Postgres/Docker).
-   Tout le code + la CI sont écrits ; la preuve se fera au premier run CI ou sur machine.
-   `tsc` échoue uniquement sur `prisma-repository.ts` faute de `prisma generate`.
+1. ~~`STORE=prisma` + RLS non exécuté~~ → **RÉSOLU (Lot 10)** : job CI `prisma-rls`
+   **vert** en base réelle (PostgreSQL 16), typecheck complet vert. Parité prouvée.
 2. **Audit métier des lectures sensibles** (NIR/IBAN) et **coordonnées historisées** +
    **change-requests** : **reportés en sous-lot D2b** (couplé au journal `AuditLog`) →
    débloque les scénarios Gherkin 14-15.
