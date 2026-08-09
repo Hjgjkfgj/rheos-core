@@ -619,6 +619,7 @@ model AuditLog {
   entityId   String
   before     Json?
   after      Json?
+  reason     String?  // motif/contexte de l'action (Lot 11) — à répercuter dans les specs
   ip         String?
   at         DateTime @default(now())
 
