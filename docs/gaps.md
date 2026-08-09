@@ -68,5 +68,24 @@ coordonnées bancaires (IBAN) et identifiants (NIR) sont **chiffrés au schéma*
 
 ---
 
+## 8. Chiffrement des données sensibles (Lot 11)
+
+`ibanEnc`/`valueEnc` (IBAN/NIR) sont chiffrés AES-256-GCM ; clé dérivée de
+`ENCRYPTION_KEY` (env). **À décider avant prod** : gestion et **rotation** de la
+clé (secret manager), stratégie de re-chiffrement. Ce n'est pas une hypothèse
+juridique mais une décision opérationnelle ouverte.
+
+## 9. Alignement specs↔code (Lot 12)
+
+Les deltas des lots 2-11 ont été **répercutés dans `rheos-specs-d1-d2/`** (note de
+version en tête de chaque fichier ; voir `docs/coherence-report.md`). **Cela ne
+ferme AUCUNE des hypothèses juridiques ci-dessus** : rétention (§1), seuils (§2),
+RUP (§3), eIDAS (§4), congés (§5) **restent ouvertes et à valider par un juriste**.
+Extensions de schéma actées (enums ARCHIVED, DocumentStatus, ChangeRequest,
+AuditLog.reason, correctif UserRole) — techniques, sans portée juridique.
+
+---
+
 **Statut** : hypothèses de travail, **non validées juridiquement**. Aucune ne fige
 l'architecture — toutes sont des données datées modifiables sans redéploiement de code.
+**Les hypothèses §1-§5 demeurent OUVERTES** (à valider juriste).

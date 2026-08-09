@@ -413,6 +413,14 @@ export class Services {
     return { period: `${period.year}-${String(period.month).padStart(2, "0")}`, count: items.length, items };
   }
 
+  /// Détail d'une relation de travail (openapi GET /employments/{id}).
+  async getEmploymentDetail(ctx: Ctx, employmentId: string) {
+    assertCan(ctx, "employment.read");
+    const emp = await this.repo.getEmployment(ctx.tenantId, employmentId);
+    if (!emp) throw new AppError(404, "not_found", "Employment introuvable");
+    return emp;
+  }
+
   async employee360(ctx: Ctx, employmentId: string, asOf?: string) {
     assertCan(ctx, "employee360.read");
     const emp = await this.repo.getEmployment(ctx.tenantId, employmentId);

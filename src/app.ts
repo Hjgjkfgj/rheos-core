@@ -245,6 +245,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   // D2
   app.post("/api/v1/persons", async (req, reply) => { reply.code(201); return svc.createPerson(ctx(req), req.body as any); });
   app.post("/api/v1/employments", async (req, reply) => { reply.code(201); return svc.hire(ctx(req), req.body as any); });
+  app.get("/api/v1/employments/:employmentId", async (req) => svc.getEmploymentDetail(ctx(req), (req.params as any).employmentId));
   app.get("/api/v1/employments/:employmentId/employee360", async (req) =>
     svc.employee360(ctx(req), (req.params as any).employmentId, (req.query as any).asOf));
   app.post("/api/v1/employments/:employmentId/assignments", async (req, reply) => {
