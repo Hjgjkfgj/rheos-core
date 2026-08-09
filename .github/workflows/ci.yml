@@ -63,14 +63,17 @@ jobs:
       - run: npx prisma generate      # client Prisma AVANT tout (typecheck implicite / db push)
       - run: DATABASE_URL="$DATABASE_URL_ADMIN" npx prisma db push --skip-generate
       # Rôle applicatif NON-superutilisateur (la RLS ne s'applique pas au superuser).
+      # psql (libpq) n'accepte pas le paramètre `?schema=public` (propre à Prisma) → on le retire.
       - run: |
-          psql "$DATABASE_URL_ADMIN" -v ON_ERROR_STOP=1 -c \
+          ADMIN=$(echo "$DATABASE_URL_ADMIN" | cut -d'?' -f1)
+          psql "$ADMIN" -v ON_ERROR_STOP=1 -c \
             "CREATE ROLE rheos_app LOGIN PASSWORD 'rheos_app'; GRANT USAGE ON SCHEMA public TO rheos_app; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rheos_app; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO rheos_app;"
       # RLS : le schéma vient de `db push` ; on n'applique que les policies (rls.sql).
       # 0007_rls_complete couvre les 39 tables (idempotent : DROP POLICY IF EXISTS + CREATE).
       - run: |
+          ADMIN=$(echo "$DATABASE_URL_ADMIN" | cut -d'?' -f1)
           for f in prisma/migrations/*/rls.sql; do
-            [ -f "$f" ] && psql "$DATABASE_URL_ADMIN" -v ON_ERROR_STOP=0 -f "$f" || true
+            [ -f "$f" ] && psql "$ADMIN" -v ON_ERROR_STOP=0 -f "$f" || true
           done
       # Sérialisation des fichiers : la base est partagée (les resetDb/TRUNCATE ne
       # doivent pas s'entrelacer entre fichiers de test).
