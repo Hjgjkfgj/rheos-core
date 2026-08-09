@@ -44,17 +44,24 @@ describe("Espace collaborateur — PWA installable", () => {
     expect(m.name).toBeTruthy();
     expect(m.start_url).toBe("/espace");
     expect(m.display).toBe("standalone");
-    expect(m.icons.length).toBeGreaterThanOrEqual(2);
+    // installabilité : icônes PNG 192 ET 512 (exigence Lighthouse) + une maskable
+    const png = m.icons.filter((i: any) => i.type === "image/png");
+    expect(png.some((i: any) => i.sizes === "192x192")).toBe(true);
+    expect(png.some((i: any) => i.sizes === "512x512")).toBe(true);
+    expect(m.icons.some((i: any) => (i.purpose || "").includes("maskable"))).toBe(true);
   });
 
-  it("sert le service worker et l'icône avec les bons types", async () => {
+  it("sert le service worker et les icônes (SVG + PNG) avec les bons types", async () => {
     const sw = await app.inject({ method: "GET", url: "/sw.js" });
     expect(sw.statusCode).toBe(200);
     expect(sw.headers["content-type"]).toContain("javascript");
     expect(sw.body).toContain("addEventListener");
-    const icon = await app.inject({ method: "GET", url: "/icon.svg" });
-    expect(icon.statusCode).toBe(200);
-    expect(icon.headers["content-type"]).toContain("svg");
+    expect((await app.inject({ method: "GET", url: "/icon.svg" })).headers["content-type"]).toContain("svg");
+    for (const p of ["/icon-192.png", "/icon-512.png"]) {
+      const r = await app.inject({ method: "GET", url: p });
+      expect(r.statusCode, p).toBe(200);
+      expect(r.headers["content-type"]).toContain("png");
+    }
   });
 });
 

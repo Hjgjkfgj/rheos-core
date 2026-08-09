@@ -5,7 +5,9 @@ name: rheos-core CI
 # défaut de schéma UserRole.@@id + types PrismaRepository). Les jobs sont
 # séparés pour que lint et tests mémoire soient verts INDÉPENDAMMENT de Prisma.
 on:
-  push: { branches: [ main, master ] }
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]   # la CI tourne aussi sur les tags de version (ex. v0.2.0-mvp)
   pull_request:
 
 jobs:

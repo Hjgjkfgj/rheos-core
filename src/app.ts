@@ -110,6 +110,9 @@ export function build(repo: Repository = new MemoryRepository()) {
   app.get("/manifest.webmanifest", async (_req, reply) => { reply.header("content-type", "application/manifest+json; charset=utf-8"); return readFileSync(web("manifest.webmanifest"), "utf8"); });
   app.get("/sw.js", async (_req, reply) => { reply.header("content-type", "text/javascript; charset=utf-8"); reply.header("service-worker-allowed", "/"); return readFileSync(web("sw.js"), "utf8"); });
   app.get("/icon.svg", async (_req, reply) => { reply.header("content-type", "image/svg+xml; charset=utf-8"); return readFileSync(web("icon.svg"), "utf8"); });
+  for (const png of ["icon-192.png", "icon-512.png"]) {
+    app.get(`/${png}`, async (_req, reply) => { reply.header("content-type", "image/png"); return readFileSync(web(png)); });
+  }
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof AppError) return reply.code(err.status).send({ code: err.code, message: err.message, details: err.details });

@@ -3,7 +3,7 @@
 // network-first avec repli cache (offline) ; écritures (POST/PUT/DELETE) jamais
 // mises en cache (elles échouent hors ligne, par sécurité).
 const CACHE = "rheos-espace-v1";
-const SHELL = ["/espace", "/manifest.webmanifest", "/icon.svg"];
+const SHELL = ["/espace", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -35,7 +35,7 @@ self.addEventListener("fetch", (e) => {
   }
 
   // App shell + statiques : cache-first.
-  if (url.pathname === "/espace" || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.svg") {
+  if (SHELL.includes(url.pathname)) {
     e.respondWith(caches.match(request).then((hit) => hit || fetch(request)));
   }
 });
