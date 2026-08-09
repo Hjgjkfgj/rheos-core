@@ -1,4 +1,39 @@
 import { signToken } from "../src/jwt.js";
+import { build } from "../src/app.js";
+
+// --- Build store-aware (Lot 10) : sous STORE=prisma, l'app utilise le
+// PrismaRepository (PostgreSQL + RLS) ; sinon le MemoryRepository. Permet de
+// faire tourner l'acceptation D1/D2 en CI sur STORE=prisma.
+let _prismaRepo: any;
+let _admin: any;
+export async function buildDB() {
+  if (process.env.STORE === "prisma") {
+    if (!_prismaRepo) {
+      const { PrismaClient } = await import("@prisma/client");
+      const { PrismaRepository } = await import("../src/prisma-repository.js");
+      _prismaRepo = new PrismaRepository(new PrismaClient());
+    }
+    return build(_prismaRepo);
+  }
+  return build();
+}
+
+/// Réinitialise la base entre les tests (uniquement STORE=prisma) pour éviter la
+/// pollution inter-tests (TRUNCATE via le rôle admin ; no-op en mémoire).
+export async function resetDb() {
+  if (process.env.STORE !== "prisma") return;
+  if (!_admin) {
+    const { PrismaClient } = await import("@prisma/client");
+    _admin = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL_ADMIN } } });
+  }
+  await _admin.$executeRawUnsafe(
+    `DO $$ DECLARE r RECORD; BEGIN
+       FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations' LOOP
+         EXECUTE 'TRUNCATE TABLE '||quote_ident(r.tablename)||' RESTART IDENTITY CASCADE';
+       END LOOP;
+     END $$;`
+  );
+}
 
 // Émet un vrai JWT (signé avec le même secret que l'app) → exerce le chemin de
 // vérification Bearer. Après login, un client réel utilise exactement ce header.

@@ -16,6 +16,7 @@ import {
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
 } from "./types.js";
 
+// --- ÉCRITURE : domaine (string) → Prisma (DateTime) -------------------------
 // Le domaine manipule des dates au format "YYYY-MM-DD" ; Prisma attend des
 // DateTime. On convertit les dates seules en Date (minuit UTC). Les ISO complets
 // (avec "T") sont acceptés tels quels par Prisma.
@@ -26,14 +27,39 @@ function norm<T extends Record<string, any>>(o: T): T {
   return r;
 }
 
+// --- LECTURE : Prisma → domaine (PARITÉ avec le store mémoire) ----------------
+// Convertit chaque valeur lue au format exact du MemoryRepository :
+//   Date (champ « date seule ») → "YYYY-MM-DD" ; Date (horodatage) → ISO complet ;
+//   Decimal → number ; null → undefined. Appliqué UNIFORMÉMENT dans tx().
+const DATE_ONLY = new Set([
+  "startDate", "endDate", "birthDate", "validFrom", "validTo", "effectiveDate",
+  "effectiveFrom", "effectiveTo", "asOfDate", "closureDate", "deadline", "dueDate",
+  "date", "periodStart", "periodEnd",
+]);
+function denorm(v: any, key?: string): any {
+  if (v === null || v === undefined) return undefined;
+  if (v instanceof Date) { const iso = v.toISOString(); return key && DATE_ONLY.has(key) ? iso.slice(0, 10) : iso; }
+  if (Array.isArray(v)) return v.map((x) => denorm(x));
+  if (typeof v === "object") {
+    if (typeof (v as any).toNumber === "function" && (v as any).constructor?.name === "Decimal") return (v as any).toNumber();
+    const out: any = {};
+    for (const k in v) out[k] = denorm((v as any)[k], k);
+    return out;
+  }
+  return v;
+}
+
 export class PrismaRepository implements Repository {
   constructor(private prisma: PrismaClient) {}
 
   /// Exécute fn dans une transaction avec le tenant courant posé pour la RLS.
-  private tx<T>(tenantId: string, fn: (px: PrismaClient) => Promise<T>): Promise<T> {
+  /// SET du tenant via set_config(..., is_local=true) → PARAMÉTRÉ (anti-injection)
+  /// et scopé à la transaction (équivaut à SET LOCAL). Le résultat est dénormalisé
+  /// pour garantir la parité de forme avec le MemoryRepository.
+  private tx(tenantId: string, fn: (px: any) => Promise<any>): Promise<any> {
     return this.prisma.$transaction(async (px: any) => {
-      await px.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
-      return fn(px);
+      await px.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      return denorm(await fn(px));
     });
   }
 

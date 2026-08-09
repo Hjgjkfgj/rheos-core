@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Rhéos — noyau (D1 Entreprise & Référentiel, D2 Gestion administrative, D3 Temps, D4 préparation paie, D10 coffre-fort). Store mémoire (dev) ou Prisma/PostgreSQL+RLS (prod). ADR-002/003/004/006.",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "test": "vitest run",

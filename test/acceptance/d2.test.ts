@@ -2,8 +2,7 @@
 // « Embauche et cycle du contrat », « Historisation & requête temporelle »,
 // « Sortie et registre ». Traduction 1-pour-1 des scénarios 6→13.
 import { describe, it, expect, beforeEach } from "vitest";
-import { build } from "../../src/app.js";
-import { hrManager, tenantAdmin, signatory } from "../helpers.js";
+import { hrManager, tenantAdmin, signatory, buildDB, resetDb } from "../helpers.js";
 
 // Contexte commun : tenant ACME, entité + établissement + 2 sites opérationnels.
 async function ctx(app: any) {
@@ -22,7 +21,7 @@ const hire = (app: any, companyId: string, establishmentId: string, person: any,
 
 describe("Acceptation D2 — Embauche & cycle du contrat", () => {
   let app: any;
-  beforeEach(() => { app = build(); });
+  beforeEach(async () => { await resetDb(); app = await buildDB(); });
 
   it("Sc.6 Embaucher crée la cascade Person/Employment(PRE_HIRE)/Contract(DRAFT)/Assignment + EmployeeHired", async () => {
     const { companyId, establishmentId, marseille } = await ctx(app);
@@ -72,7 +71,7 @@ describe("Acceptation D2 — Embauche & cycle du contrat", () => {
 
 describe("Acceptation D2 — Historisation & requête temporelle", () => {
   let app: any;
-  beforeEach(() => { app = build(); });
+  beforeEach(async () => { await resetDb(); app = await buildDB(); });
 
   it("Sc.10 employee360?asOf= reconstruit l'affectation passée puis future", async () => {
     const { companyId, establishmentId, marseille, aix } = await ctx(app);
@@ -89,16 +88,18 @@ describe("Acceptation D2 — Historisation & requête temporelle", () => {
     const { companyId, establishmentId, marseille, aix } = await ctx(app);
     const employmentId = (await hire(app, companyId, establishmentId, { lastName: "Dupont", firstName: "Marie" }, { operatingSiteId: marseille })).json().employment.id;
     await app.inject({ method: "POST", url: `/api/v1/employments/${employmentId}/assignments`, headers: hrManager(), payload: { operatingSiteId: aix, validFrom: "2026-10-01" } });
-    // toujours 2 affectations (l'ancienne clôturée au 2026-09-30, conservée)
-    const old = app.db.assignments.find((a: any) => a.operatingSiteId === marseille);
-    expect(old.validTo).toBe("2026-09-30");
-    expect(app.db.assignments.filter((a: any) => a.employmentId === employmentId).length).toBe(2);
+    // L'ancienne affectation reste CONSULTABLE via requête temporelle et est clôturée
+    // au 2026-09-30 (la veille du transfert) — prouvé sans accès au store interne.
+    const at = async (d: string) => (await app.inject({ method: "GET", url: `/api/v1/employments/${employmentId}/employee360?asOf=${d}`, headers: hrManager() })).json().currentAssignment?.operatingSiteId;
+    expect(await at("2026-09-30")).toBe(marseille); // ancienne encore valide la veille
+    expect(await at("2026-10-01")).toBe(aix);       // nouvelle à partir du transfert
+    expect(await at("2026-09-15")).toBe(marseille); // historique préservé
   });
 });
 
 describe("Acceptation D2 — Sortie et registre", () => {
   let app: any;
-  beforeEach(() => { app = build(); });
+  beforeEach(async () => { await resetDb(); app = await buildDB(); });
 
   it("Sc.12 déclarer une sortie future → EXITING, émet EmployeeDeparture, dossier consultable", async () => {
     const { companyId, establishmentId } = await ctx(app);

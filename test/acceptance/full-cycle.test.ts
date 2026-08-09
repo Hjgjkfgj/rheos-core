@@ -8,7 +8,7 @@ import { hrManager, tenantAdmin, signatory } from "../helpers.js";
 
 describe("DoD — cycle complet embauche → contrat signé → dossier → RUP → coffre-fort", () => {
   it("déroule le cycle avec droits, projections et coffre-fort scellé", async () => {
-    const app = build();
+    const app: any = build();
 
     // 1) Onboarding entreprise (TenantAdmin) + établissement (HrManager)
     const co = (await app.inject({ method: "POST", url: "/api/v1/companies", headers: tenantAdmin(), payload: { legalName: "ACME SAS", siren: "552100554" } })).json();

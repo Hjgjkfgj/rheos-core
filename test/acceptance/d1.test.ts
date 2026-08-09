@@ -2,12 +2,11 @@
 // Traduction 1-pour-1 de rheos-specs-d1-d2/acceptance/d1-d2.feature (ADR-018).
 // Contexte : tenant "ACME" isolé + utilisateur "admin@acme" rôle "TenantAdmin".
 import { describe, it, expect, beforeEach } from "vitest";
-import { build } from "../../src/app.js";
-import { tenantAdmin } from "../helpers.js";
+import { tenantAdmin, buildDB, resetDb } from "../helpers.js";
 
 describe("Acceptation D1 — Onboarding entreprise (d1-d2.feature)", () => {
   let app: any;
-  beforeEach(() => { app = build(); });
+  beforeEach(async () => { await resetDb(); app = await buildDB(); });
 
   // Scénario: Créer une entité juridique valide
   it("Créer une entité juridique valide → 201 + CompanyCreated + visible seulement dans ACME", async () => {

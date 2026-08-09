@@ -5,6 +5,35 @@
 dans cet environnement). Légende : ✅ vérifié ici · ⏳ prêt, vérifiable en CI/Postgres
 (non exécutable dans le bac à sable) · ⚠️ partiel/reporté explicitement.
 
+## 0. Mise à jour Lot 10 — Parité Postgres + RLS
+
+**Typecheck complet VERT** (blocage `UserRole.@@id` levé, client Prisma généré,
+`PrismaRepository` typé). La preuve d'exécution `STORE=prisma` se fait en **CI**
+(pas de Postgres local) — job `prisma-rls`.
+
+**Écarts memory/prisma identifiés et corrigés** (règle : PrismaRepository corrigé ;
+services JAMAIS modifiés — ADR-014 respecté ; store mémoire non modifié car conforme) :
+
+| Écart | Cause | Correctif | Emplacement |
+|---|---|---|---|
+| `prisma generate` cassé | `UserRole.@@id` réfère des champs nullables (P1012) | clé de substitution `id` + `@@unique` | `schema.prisma` |
+| Dates : mémoire `"YYYY-MM-DD"`/ISO vs Prisma `Date` | type `DateTime` | `denorm` : `Date`→string (date-seule vs ISO) | `PrismaRepository` |
+| Optionnels : mémoire `undefined` vs Prisma `null` | valeurs `null` | `denorm` : `null`→`undefined` | `PrismaRepository` |
+| Décimaux : mémoire `number` vs Prisma `Decimal` | `@db.Decimal` | `denorm` : `Decimal`→`number` | `PrismaRepository` |
+| `SET LOCAL` par interpolation de chaîne | injection potentielle | `set_config(..., is_local=true)` **paramétré** | `PrismaRepository.tx` |
+| RLS incomplète (13 tables D5-D9) | policies manquantes | migration `0007_rls_complete` (39 tables) | `prisma/migrations` |
+| Superutilisateur contourne la RLS | pas de garde-fou | `assertNonSuperuserInProd` au démarrage | `db-guard.ts` + `store-selector` |
+| Tests inspectant le store mémoire (`app.db`) | non portables sur Prisma | réécrits via l'API (`employee360`) | `acceptance/d2` |
+| `build()` par défaut mémoire | la suite n'exerçait pas Prisma | helper `buildDB()` store-aware + `resetDb()` | `test/helpers.ts` |
+
+**Test négatif présent** : `test/prisma-rls.test.ts` prouve qu'AVEC la RLS le rôle
+applicatif ne voit que son tenant, et que SANS RLS (rôle superutilisateur qui la
+contourne) **l'isolation TOMBE** ; + refus de démarrage superutilisateur en prod ;
++ `set_config` posé par transaction. (S'exécute uniquement sous `STORE=prisma`.)
+
+> Statut : **preuve d'exécution en attente du run CI vert** (lien à confirmer).
+> Dès que `prisma-rls` est vert, la ligne #3 ci-dessous passe ⏳ → ✅.
+
 ## 1. DoD globale du prompt maître — point par point
 
 | # | Critère DoD | État | Preuve / réserve |

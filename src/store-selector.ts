@@ -9,7 +9,10 @@ export async function getRepository(): Promise<Repository> {
   if (mode === "prisma") {
     const { PrismaClient } = await import("@prisma/client");
     const { PrismaRepository } = await import("./prisma-repository.js");
-    return new PrismaRepository(new PrismaClient());
+    const { assertNonSuperuserInProd } = await import("./db-guard.js");
+    const client = new PrismaClient();
+    await assertNonSuperuserInProd(client); // refuse le superutilisateur en prod (RLS)
+    return new PrismaRepository(client);
   }
   return new MemoryRepository();
 }

@@ -570,7 +570,11 @@ model Permission {
 }
 
 /// Attribution rôle→utilisateur avec périmètre ABAC (scopeType/scopeId).
+/// Clé de substitution `id` : un @@id composite ne peut pas référencer des champs
+/// optionnels (scopeType/scopeId nullables → Prisma P1012). Unicité logique via @@unique.
+/// À répercuter dans rheos-specs-d1-d2/prisma/schema.prisma (Lot 10).
 model UserRole {
+  id        String  @id @default(uuid())
   userId    String
   roleId    String
   scopeType String? // TENANT | LEGAL_ENTITY | ESTABLISHMENT | ORG_UNIT | SELF
@@ -578,7 +582,7 @@ model UserRole {
   user      User    @relation(fields: [userId], references: [id])
   role      Role    @relation(fields: [roleId], references: [id])
 
-  @@id([userId, roleId, scopeType, scopeId])
+  @@unique([userId, roleId, scopeType, scopeId])
 }
 
 model RolePermission {

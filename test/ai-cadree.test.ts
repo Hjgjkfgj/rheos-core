@@ -28,7 +28,7 @@ describe("IA — Extraction documentaire (R1)", () => {
   });
 
   it("l'endpoint /extract journalise l'interaction IA", async () => {
-    const app = build();
+    const app: any = build();
     await app.inject({ method: "POST", url: "/api/v1/extract", headers: hrManager(), payload: { text: SAMPLE } });
     const log = app.db.aiAudit.find((a: any) => a.kind === "EXTRACTION");
     expect(log.version).toBe("extract-v1");
