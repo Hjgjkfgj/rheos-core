@@ -162,3 +162,4 @@ test/           Scénarios exécutables (Gherkin → Vitest)
 - Coffre-fort D10 complet (signature, scellement WORM) + socle Temps (D3).
 - Câbler les moteurs existants (rétention RGPD, convention datée, extraction).
 # rheos-core
+# rheos-core
