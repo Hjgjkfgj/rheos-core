@@ -1,0 +1,1006 @@
+// =============================================================================
+// Rhéos — rheos-core — Modèle de données canonique
+// Domaines D1 (CompanyReferential) + D2 (HrAdministration)
+// -----------------------------------------------------------------------------
+// Conforme aux ADR du Master Book :
+//  - ADR-002 : code/BDD en anglais (langage ubiquitaire), UI en français.
+//  - ADR-003 : Person ≠ Employment (la personne est l'entité racine ;
+//              « Collaborateur/Employee » = vue d'un Employment actif).
+//  - ADR-004 : temporalité — champs validFrom/validTo (SCD-2) sur les objets
+//              datés + table DomainEvent (event sourcing sélectif).
+//  - ADR-006 : multi-tenant — chaque table métier porte tenantId ;
+//              l'isolation est appliquée par Row-Level Security PostgreSQL
+//              (policy USING (tenant_id = current_setting('app.tenant_id'))).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================== ENUMS =======================================
+
+enum EstablishmentStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum OrgUnitKind {
+  DIRECTION
+  DEPARTMENT
+  SERVICE
+  TEAM
+  RAYON
+  OTHER
+}
+
+enum AgreementType {
+  COLLECTIVE      // Convention collective (IDCC)
+  BRANCH          // Accord de branche
+  COMPANY         // Accord d'entreprise
+  ESTABLISHMENT   // Accord d'établissement
+  INTERNAL_POLICY // Politique interne
+}
+
+enum EmploymentStatus {
+  PRE_HIRE
+  ACTIVE
+  SUSPENDED
+  ON_LEAVE
+  EXITING
+  ENDED
+  ARCHIVED // état terminal post-rétention (Lot 3) — à répercuter dans rheos-specs-d1-d2
+}
+
+enum ContractType {
+  CDI
+  CDD
+  APPRENTICESHIP
+  PROFESSIONALIZATION
+  INTERNSHIP
+  TEMPORARY
+  SEASONAL
+}
+
+enum ContractStatus {
+  DRAFT
+  REVIEW
+  VALIDATED
+  SIGNED
+  ACTIVE
+  SUSPENDED
+  ENDED
+}
+
+enum WorkingTimeUnit {
+  HOURS_PER_WEEK
+  HOURS_PER_MONTH
+  DAYS_PER_YEAR // forfait jours
+}
+
+enum AmendmentStatus {
+  DRAFT
+  VALIDATED
+  SIGNED
+  APPLIED
+}
+
+enum AddressType {
+  HOME
+  POSTAL
+  OTHER
+}
+
+enum BankAccountStatus {
+  FURNISHED
+  TO_VERIFY
+  VALIDATED
+  REJECTED
+  REPLACED
+}
+
+enum SensitiveIdType {
+  NIR            // n° sécurité sociale
+  ID_CARD
+  PASSPORT
+  RESIDENCE_PERMIT
+  DRIVING_LICENSE
+}
+
+enum DocumentType {
+  CONTRACT
+  AMENDMENT
+  PAYSLIP
+  CERTIFICATE
+  ID_DOCUMENT
+  ADMINISTRATIVE
+  OTHER
+}
+
+enum SignatureStatus {
+  NONE
+  PENDING
+  SIGNED
+  REFUSED
+}
+
+// Cycle de vie documentaire (D10), distinct du statut de signature.
+// À répercuter dans rheos-specs-d1-d2/prisma/schema.prisma (Lot 4).
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  VALIDATED
+  SIGNED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum HrEventType {
+  EMPLOYEE_HIRED
+  CONTRACT_CREATED
+  CONTRACT_ACTIVATED
+  AMENDMENT_SIGNED
+  MOBILITY
+  PROMOTION
+  ABSENCE
+  DEPARTURE
+  OTHER
+}
+
+enum ObligationStatus {
+  DETECTED
+  QUALIFIED
+  ACTIVE
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  NOT_APPLICABLE
+  ARCHIVED // état terminal (Lot 2) — à répercuter dans rheos-specs-d1-d2/prisma/schema.prisma
+}
+
+// =============================== TENANCY =====================================
+
+/// Racine multi-tenant (ADR-006). Les tables métier ne référencent pas Tenant
+/// par une FK Prisma : elles portent un scalaire tenantId indexé, et l'isolation
+/// est garantie par la Row-Level Security PostgreSQL.
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+}
+
+// =========================== D1 — COMPANY REFERENTIAL ========================
+
+model Group {
+  id            String        @id @default(uuid())
+  tenantId      String
+  name          String
+  createdAt     DateTime      @default(now())
+  legalEntities LegalEntity[]
+
+  @@index([tenantId])
+}
+
+model LegalEntity {
+  id           String         @id @default(uuid())
+  tenantId     String
+  groupId      String?
+  group        Group?         @relation(fields: [groupId], references: [id])
+  legalName    String
+  tradeName    String?
+  legalForm    String?
+  siren        String
+  status       String         @default("ACTIVE")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  establishments Establishment[]
+  positions      Position[]
+  agreements     Agreement[]
+  employments    Employment[]
+
+  @@unique([tenantId, siren])
+  @@index([tenantId])
+}
+
+model Establishment {
+  id            String              @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  legalEntity   LegalEntity         @relation(fields: [legalEntityId], references: [id])
+  siret         String
+  name          String
+  addressLine   String?
+  postalCode    String?
+  city          String?
+  idcc          String? // convention applicable à l'établissement (le cas échéant)
+  status        EstablishmentStatus @default(ACTIVE)
+  closureDate   DateTime?
+  validFrom     DateTime            @default(now())
+  validTo       DateTime?
+  createdAt     DateTime            @default(now())
+
+  operatingSites OperatingSite[]
+  orgUnits       OrgUnit[]
+  employments    Employment[] // rattachement administratif
+
+  @@unique([tenantId, siret])
+  @@index([tenantId, legalEntityId])
+}
+
+model OperatingSite {
+  id              String        @id @default(uuid())
+  tenantId        String
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  name            String
+  createdAt       DateTime      @default(now())
+  assignments     Assignment[]
+
+  @@index([tenantId, establishmentId])
+}
+
+model OrgUnit {
+  id              String         @id @default(uuid())
+  tenantId        String
+  establishmentId String?
+  establishment   Establishment? @relation(fields: [establishmentId], references: [id])
+  parentId        String?
+  parent          OrgUnit?       @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children        OrgUnit[]      @relation("OrgUnitHierarchy")
+  name            String
+  kind            OrgUnitKind    @default(SERVICE)
+  assignments     Assignment[]
+
+  @@index([tenantId, establishmentId])
+}
+
+model Position {
+  id             String       @id @default(uuid())
+  tenantId       String
+  legalEntityId  String
+  legalEntity    LegalEntity  @relation(fields: [legalEntityId], references: [id])
+  title          String
+  classification String?
+  coefficient    Int?
+  assignments    Assignment[]
+
+  @@index([tenantId, legalEntityId])
+}
+
+model Agreement {
+  id            String        @id @default(uuid())
+  tenantId      String
+  legalEntityId String?
+  legalEntity   LegalEntity?  @relation(fields: [legalEntityId], references: [id])
+  type          AgreementType
+  idcc          String?
+  title         String
+  source        String?
+  version       String?
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@index([tenantId, legalEntityId])
+  @@index([tenantId, idcc])
+}
+
+/// Effectif historisé (SCD-2) — alimenté par calcul, jamais saisi à la main.
+model WorkforceSnapshot {
+  id              String   @id @default(uuid())
+  tenantId        String
+  legalEntityId   String?
+  establishmentId String?
+  asOfDate        DateTime
+  headcount       Int
+  etp             Decimal? @db.Decimal(10, 2)
+  method          String?
+
+  @@index([tenantId, asOfDate])
+}
+
+/// Obligation déclenchée (seuils, convention…). Version light MVP.
+model Obligation {
+  id                 String           @id @default(uuid())
+  tenantId           String
+  legalEntityId      String?
+  establishmentId    String?
+  code               String
+  title              String
+  source             String?
+  triggerDescription String?
+  deadline           DateTime?
+  status             ObligationStatus @default(DETECTED)
+  risk               String?
+  createdAt          DateTime         @default(now())
+
+  @@index([tenantId, status])
+}
+
+// =========================== D2 — HR ADMINISTRATION =========================
+
+/// Entité racine (ADR-003). Une Person porte une ou plusieurs Employment.
+model Person {
+  id                 String                @id @default(uuid())
+  tenantId           String
+  lastName           String
+  firstName          String
+  usageName          String?
+  birthDate          DateTime?
+  personalEmail      String?
+  personalPhone      String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  employments        Employment[]
+  addresses          Address[]
+  bankAccounts       BankAccount[]
+  emergencyContacts  EmergencyContact[]
+  sensitiveIds       SensitiveIdentifier[]
+  documents          Document[]
+  hrEvents           HrEvent[]
+
+  @@index([tenantId, lastName, firstName])
+}
+
+/// Relation de travail (ADR-003). « Collaborateur/Employee » = Employment actif.
+model Employment {
+  id                        String           @id @default(uuid())
+  tenantId                  String
+  personId                  String
+  person                    Person           @relation(fields: [personId], references: [id])
+  legalEntityId             String
+  legalEntity               LegalEntity      @relation(fields: [legalEntityId], references: [id])
+  administrativeEstablishmentId String?
+  administrativeEstablishment   Establishment? @relation(fields: [administrativeEstablishmentId], references: [id])
+  startDate                 DateTime
+  endDate                   DateTime?
+  status                    EmploymentStatus @default(PRE_HIRE)
+  createdAt                 DateTime         @default(now())
+
+  contracts     Contract[]
+  assignments   Assignment[]
+  events        HrEvent[]
+  documents     Document[]
+  leaveRequests LeaveRequest[]
+  shifts        Shift[]
+  timeEntries   TimeEntry[]
+
+  @@index([tenantId, personId])
+  @@index([tenantId, legalEntityId, status])
+}
+
+model Contract {
+  id              String             @id @default(uuid())
+  tenantId        String
+  employmentId    String
+  employment      Employment         @relation(fields: [employmentId], references: [id])
+  type            ContractType
+  startDate       DateTime
+  endDate         DateTime?
+  workingTime     Decimal?           @db.Decimal(6, 2)
+  workingTimeUnit WorkingTimeUnit    @default(HOURS_PER_WEEK)
+  classification  String?
+  coefficient     Int?
+  grossMonthly    Decimal?           @db.Decimal(12, 2)
+  status          ContractStatus     @default(DRAFT)
+  createdAt       DateTime           @default(now())
+  amendments      ContractAmendment[]
+
+  @@index([tenantId, employmentId, status])
+}
+
+model ContractAmendment {
+  id            String          @id @default(uuid())
+  tenantId      String
+  contractId    String
+  contract      Contract        @relation(fields: [contractId], references: [id])
+  subject       String
+  effectiveDate DateTime
+  changes       Json
+  status        AmendmentStatus @default(DRAFT)
+  signedAt      DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([tenantId, contractId])
+}
+
+/// Affectation (SCD-2). L'historique n'est jamais écrasé (validFrom/validTo).
+model Assignment {
+  id                 String         @id @default(uuid())
+  tenantId           String
+  employmentId       String
+  employment         Employment     @relation(fields: [employmentId], references: [id])
+  operatingSiteId    String?
+  operatingSite      OperatingSite? @relation(fields: [operatingSiteId], references: [id])
+  orgUnitId          String?
+  orgUnit            OrgUnit?       @relation(fields: [orgUnitId], references: [id])
+  positionId         String?
+  position           Position?      @relation(fields: [positionId], references: [id])
+  managerEmploymentId String?       // lien souple (pas de FK) vers l'Employment du manager
+  allocationPct      Int?           @default(100)
+  validFrom          DateTime
+  validTo            DateTime?
+
+  @@index([tenantId, employmentId, validFrom])
+}
+
+model Address {
+  id         String      @id @default(uuid())
+  tenantId   String
+  personId   String
+  person     Person      @relation(fields: [personId], references: [id])
+  type       AddressType @default(HOME)
+  line1      String
+  line2      String?
+  postalCode String
+  city       String
+  country    String      @default("FR")
+  validFrom  DateTime    @default(now())
+  validTo    DateTime?
+
+  @@index([tenantId, personId])
+}
+
+/// Données bancaires — accès fortement restreint (permission bank_account.read).
+model BankAccount {
+  id         String            @id @default(uuid())
+  tenantId   String
+  personId   String
+  person     Person            @relation(fields: [personId], references: [id])
+  ibanLast4  String            // affichage ; IBAN complet stocké chiffré côté service
+  ibanEnc    String            // valeur chiffrée (AES) — jamais exposée par l'API
+  bic        String?
+  holderName String?
+  status     BankAccountStatus @default(TO_VERIFY)
+  validFrom  DateTime          @default(now())
+  validTo    DateTime?
+
+  @@index([tenantId, personId])
+}
+
+model EmergencyContact {
+  id           String  @id @default(uuid())
+  tenantId     String
+  personId     String
+  person       Person  @relation(fields: [personId], references: [id])
+  name         String
+  relationship String?
+  phone        String?
+  priority     Int?
+
+  @@index([tenantId, personId])
+}
+
+/// Identifiants sensibles — valeur chiffrée, accès très restreint.
+model SensitiveIdentifier {
+  id         String          @id @default(uuid())
+  tenantId   String
+  personId   String
+  person     Person          @relation(fields: [personId], references: [id])
+  type       SensitiveIdType
+  valueEnc   String
+  validFrom  DateTime        @default(now())
+  validTo    DateTime?
+
+  @@index([tenantId, personId])
+}
+
+/// Coffre-fort documentaire (D10, socle minimal MVP).
+model Document {
+  id              String          @id @default(uuid())
+  tenantId        String
+  personId        String?
+  person          Person?         @relation(fields: [personId], references: [id])
+  employmentId    String?
+  employment      Employment?     @relation(fields: [employmentId], references: [id])
+  type            DocumentType
+  category        String?
+  label           String
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  version         Int             @default(1)
+  storageRef      String          // référence objet (stockage), pas le binaire
+  sha256          String          // scellement (WORM)
+  status          DocumentStatus  @default(DRAFT)
+  signatureStatus SignatureStatus @default(NONE)
+  signedAt        DateTime?
+  signatureProof  String?         // certificat de preuve (empreinte + signataire + horodatage)
+  retentionUntil  DateTime?
+  retentionTrigger String?        // événement déclencheur de la rétention
+  legalHold       Boolean         @default(false) // bloque toute suppression
+  createdBy       String?
+  anonymizedAt    DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@index([tenantId, personId])
+  @@index([tenantId, employmentId])
+}
+
+/// Timeline métier (append-only).
+model HrEvent {
+  id            String      @id @default(uuid())
+  tenantId      String
+  employmentId  String?
+  employment    Employment? @relation(fields: [employmentId], references: [id])
+  personId      String?
+  person        Person?     @relation(fields: [personId], references: [id])
+  type          HrEventType
+  actorUserId   String?
+  occurredAt    DateTime    @default(now())
+  effectiveDate DateTime?
+  payload       Json?
+
+  @@index([tenantId, employmentId, occurredAt])
+}
+
+// =============================== IDENTITY / RBAC =============================
+
+model User {
+  id                 String     @id @default(uuid())
+  tenantId           String?    // null = utilisateur plateforme (éditeur)
+  personId           String?
+  email              String     @unique
+  passwordHash       String
+  mustChangePassword Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  roles              UserRole[]
+
+  @@index([tenantId])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // ex. "employee.read", "contract.sign"
+  description String?
+  roles       RolePermission[]
+}
+
+/// Attribution rôle→utilisateur avec périmètre ABAC (scopeType/scopeId).
+model UserRole {
+  userId    String
+  roleId    String
+  scopeType String? // TENANT | LEGAL_ENTITY | ESTABLISHMENT | ORG_UNIT | SELF
+  scopeId   String?
+  user      User    @relation(fields: [userId], references: [id])
+  role      Role    @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId, scopeType, scopeId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+/// Journal des interactions IA (Lot 7, ADR-010). Append-only ; l'IA n'écrit
+/// jamais les données métier. Trace : données utilisées + version.
+model AiAuditLog {
+  id       String   @id @default(uuid())
+  tenantId String
+  userId   String?
+  kind     String   // EXTRACTION | BRIEFING | ASSISTANT
+  query    String?
+  dataUsed String[] // références de données consultées (pas leur contenu)
+  version  String
+  outcome  String
+  at       DateTime @default(now())
+
+  @@index([tenantId, at])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ip         String?
+  at         DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+}
+
+// =============================== EVENT STORE ================================
+
+/// Event sourcing sélectif (ADR-004) : Company, Employment, Contract, Workforce.
+/// Append-only : jamais de UPDATE/DELETE. Une correction = un nouvel événement.
+model DomainEvent {
+  id            String   @id @default(uuid())
+  tenantId      String
+  aggregateType String   // ex. "Employment", "Contract"
+  aggregateId   String
+  type          String   // ex. "EmployeeHired"
+  version       Int      // version du contrat d'événement
+  sequence      Int      // ordre dans l'agrégat
+  payload       Json
+  actorUserId   String?
+  occurredAt    DateTime @default(now())
+
+  @@unique([aggregateType, aggregateId, sequence])
+  @@index([tenantId, aggregateType, aggregateId])
+  @@index([tenantId, type, occurredAt])
+}
+
+// =============================== D3 — TEMPS (socle) =========================
+
+enum LeaveType {
+  PAID
+  RTT
+  SICK
+  UNPAID
+  FAMILY_EVENT // Lot 5 — congés exceptionnels (à répercuter dans rheos-specs)
+}
+
+enum LeaveStatus {
+  REQUESTED
+  MANAGER_APPROVED // Lot 5 — étape manager (workflow validé)
+  APPROVED
+  REFUSED
+  CANCELLED
+}
+
+enum LeaveLedgerKind {
+  ACCRUAL
+  TAKEN
+  CORRECTION
+  CARRYOVER
+  RESET
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid())
+  tenantId     String
+  employmentId String
+  employment   Employment  @relation(fields: [employmentId], references: [id])
+  type         LeaveType
+  startDate    DateTime
+  endDate      DateTime
+  days         Int
+  status       LeaveStatus @default(REQUESTED)
+  reason       String?
+  decidedBy    String?
+  managerApprovedBy String?
+  createdAt    DateTime    @default(now())
+
+  @@index([tenantId, employmentId, type, status])
+}
+
+/// Grand livre des congés — APPEND-ONLY (Lot 5). Une correction = une ligne, jamais
+/// un écrasement ; le solde à une date se rejoue par effectiveDate ≤ asOf.
+model LeaveLedgerEntry {
+  id            String          @id @default(uuid())
+  tenantId      String
+  employmentId  String
+  type          LeaveType
+  kind          LeaveLedgerKind
+  days          Int
+  effectiveDate DateTime
+  sourceRef     String?
+  reason        String?
+  createdBy     String?
+  createdAt     DateTime        @default(now())
+
+  @@index([tenantId, employmentId, type, effectiveDate])
+}
+
+enum DeadlineStatus {
+  OPEN
+  DONE
+}
+
+model Budget {
+  id            String   @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  year          Int
+  amount        Decimal  @db.Decimal(14, 2)
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, legalEntityId, year])
+}
+
+enum CompetencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum TrainingType {
+  MANDATORY
+  SKILL
+  SAFETY
+  OTHER
+}
+
+enum TrainingStatus {
+  PLANNED
+  DONE
+  CANCELLED
+}
+
+enum ReviewType {
+  ANNUAL
+  PROFESSIONAL
+}
+
+enum ReviewStatus {
+  PLANNED
+  HELD
+}
+
+model Competency {
+  id           String          @id @default(uuid())
+  tenantId     String
+  employmentId String
+  name         String
+  level        CompetencyLevel
+  acquiredDate DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime        @default(now())
+
+  @@index([tenantId, employmentId])
+}
+
+model Training {
+  id            String         @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  employmentId  String
+  title         String
+  type          TrainingType   @default(SKILL)
+  status        TrainingStatus @default(PLANNED)
+  date          DateTime?
+  dueDate       DateTime?
+  provider      String?
+  createdAt     DateTime       @default(now())
+
+  @@index([tenantId, legalEntityId])
+  @@index([tenantId, employmentId])
+}
+
+model CareerReview {
+  id           String       @id @default(uuid())
+  tenantId     String
+  employmentId String
+  type         ReviewType
+  date         DateTime
+  status       ReviewStatus @default(PLANNED)
+  notes        String?
+  createdAt    DateTime     @default(now())
+
+  @@index([tenantId, employmentId])
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RiskStatus {
+  OPEN
+  CONTROLLED
+}
+
+enum AccidentSeverity {
+  BENIGN
+  LOST_TIME
+  SERIOUS
+}
+
+model Risk {
+  id            String     @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  unit          String?
+  hazard        String
+  gravity       Int
+  probability   Int
+  score         Int
+  level         RiskLevel
+  measures      String?
+  actionPlan    String?
+  status        RiskStatus @default(OPEN)
+  createdAt     DateTime   @default(now())
+
+  @@index([tenantId, legalEntityId, level])
+}
+
+model WorkAccident {
+  id            String           @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  employmentId  String?
+  date          DateTime
+  description   String
+  severity      AccidentSeverity
+  lostDays      Int?
+  createdAt     DateTime         @default(now())
+
+  @@index([tenantId, legalEntityId, date])
+}
+
+enum Authority {
+  INSPECTION_TRAVAIL
+  URSSAF
+  CARSAT
+  DREETS
+  MEDECINE_TRAVAIL
+  AUTRE
+}
+
+enum InteractionType {
+  CONTROLE
+  DEMANDE
+  DECLARATION
+  MISE_EN_DEMEURE
+  COURRIER
+}
+
+enum InteractionStatus {
+  OPEN
+  IN_PROGRESS
+  RESPONDED
+  CLOSED
+}
+
+model AuthorityInteraction {
+  id            String            @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  authority     Authority
+  type          InteractionType
+  reference     String?
+  date          DateTime
+  dueDate       DateTime?
+  status        InteractionStatus @default(OPEN)
+  notes         String?
+  responseDate  DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([tenantId, legalEntityId, status])
+}
+
+enum CseRole {
+  TITULAIRE
+  SUPPLEANT
+  SECRETAIRE
+  TRESORIER
+  REFERENT_HARCELEMENT
+  REPRESENTANT_SYNDICAL
+}
+
+enum MeetingType {
+  ORDINAIRE
+  EXTRAORDINAIRE
+}
+
+enum MeetingStatus {
+  PLANNED
+  HELD
+  CANCELLED
+}
+
+model CseMandate {
+  id            String   @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  employmentId  String
+  role          CseRole
+  college       String?
+  startDate     DateTime
+  endDate       DateTime?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, legalEntityId])
+}
+
+enum NegotiationTheme {
+  SALAIRES
+  TEMPS_TRAVAIL
+  EGALITE_PRO
+  QVT
+  AUTRE
+}
+
+enum NegotiationStatus {
+  PLANNED
+  IN_PROGRESS
+  AGREEMENT
+  DISAGREEMENT
+}
+
+model Negotiation {
+  id            String            @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  year          Int
+  theme         NegotiationTheme
+  status        NegotiationStatus @default(PLANNED)
+  startDate     DateTime?
+  notes         String?
+  createdAt     DateTime          @default(now())
+
+  @@index([tenantId, legalEntityId, year])
+}
+
+model CseMeeting {
+  id            String        @id @default(uuid())
+  tenantId      String
+  legalEntityId String
+  date          DateTime
+  type          MeetingType   @default(ORDINAIRE)
+  agenda        Json
+  status        MeetingStatus @default(PLANNED)
+  minutes       String?
+  createdAt     DateTime      @default(now())
+
+  @@index([tenantId, legalEntityId, date])
+}
+
+model Deadline {
+  id            String         @id @default(uuid())
+  tenantId      String
+  legalEntityId String?
+  employmentId  String?
+  type          String
+  label         String
+  dueDate       DateTime
+  status        DeadlineStatus @default(OPEN)
+  createdAt     DateTime       @default(now())
+
+  @@index([tenantId, dueDate])
+}
+
+model Shift {
+  id              String     @id @default(uuid())
+  tenantId        String
+  employmentId    String
+  employment      Employment @relation(fields: [employmentId], references: [id])
+  date            DateTime
+  startTime       String
+  endTime         String
+  operatingSiteId String?
+  hours           Decimal    @db.Decimal(5, 2)
+  createdAt       DateTime   @default(now())
+
+  @@index([tenantId, employmentId, date])
+}
+
+model TimeEntry {
+  id           String     @id @default(uuid())
+  tenantId     String
+  employmentId String
+  employment   Employment @relation(fields: [employmentId], references: [id])
+  date         DateTime
+  clockIn      String
+  clockOut     String
+  hours        Decimal    @db.Decimal(5, 2)
+  createdAt    DateTime   @default(now())
+
+  @@index([tenantId, employmentId, date])
+}

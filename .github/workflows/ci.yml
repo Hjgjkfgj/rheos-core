@@ -1,0 +1,71 @@
+name: rheos-core CI
+
+# Definition of Done : lint + tests (mémoire) verts ; typecheck et prisma-rls
+# nécessitent `npx prisma generate` (peut rester rouge jusqu'au Lot 10 —
+# défaut de schéma UserRole.@@id + types PrismaRepository). Les jobs sont
+# séparés pour que lint et tests mémoire soient verts INDÉPENDAMMENT de Prisma.
+on:
+  push: { branches: [ main, master ] }
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint vocabulaire (Tome 01 / ADR-002)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run lint:vocab
+
+  test-memory:
+    name: Tests (STORE=memory) — n'a pas besoin de Prisma
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: STORE=memory npm test
+
+  typecheck:
+    name: Typecheck (prisma generate → tsc strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx prisma generate      # client Prisma AVANT le typecheck (obligatoire)
+      - run: npm run typecheck
+
+  prisma-rls:
+    name: Tests STORE=prisma + RLS
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: rheos }
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 3s
+          --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL_ADMIN: postgresql://postgres:postgres@localhost:5432/rheos?schema=public
+      DATABASE_URL: postgresql://rheos_app:rheos_app@localhost:5432/rheos?schema=public
+      JWT_SECRET: ci-secret-change-me-please
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx prisma generate      # client Prisma AVANT tout (typecheck implicite / db push)
+      - run: DATABASE_URL="$DATABASE_URL_ADMIN" npx prisma db push --skip-generate
+      - run: |
+          psql "$DATABASE_URL_ADMIN" -v ON_ERROR_STOP=1 -c \
+            "CREATE ROLE rheos_app LOGIN PASSWORD 'rheos_app'; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rheos_app; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO rheos_app;"
+          for f in prisma/migrations/*/rls.sql prisma/migrations/*/migration.sql; do
+            [ -f "$f" ] && psql "$DATABASE_URL_ADMIN" -v ON_ERROR_STOP=0 -f "$f" || true
+          done
+      - run: STORE=prisma npm test

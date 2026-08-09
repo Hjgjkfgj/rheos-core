@@ -1,0 +1,30 @@
+{
+  "name": "rheos-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Rhéos — noyau (D1 Entreprise & Référentiel, D2 Gestion administrative, D3 Temps, D4 préparation paie, D10 coffre-fort). Store mémoire (dev) ou Prisma/PostgreSQL+RLS (prod). ADR-002/003/004/006.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint:vocab": "node scripts/vocab-lint.mjs",
+    "seed": "tsx scripts/seed-demo.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:setup": "bash scripts/db-setup.sh",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "fastify": "^4.28.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "prisma": "^5.19.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}

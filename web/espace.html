@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#11223b" />
+<meta name="description" content="Mon espace collaborateur Rhéos : contrat, documents, congés, planning." />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
+<title>Mon espace — Rhéos</title>
+<style>
+  :root {
+    --navy:#11223b; --teal:#136c7d; --mint:#e7f5f3; --bg:#eef3f7; --card:#fff;
+    --ok:#1b7f3b; --amber:#8a6400; --ink:#1c2530; --muted:#586573; --line:#e6ebf0;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased; padding-bottom:calc(72px + var(--safe-b)); }
+  a { color:var(--teal); }
+  :focus-visible { outline:3px solid #2b8aa0; outline-offset:2px; border-radius:8px; }
+
+  header.top { background:linear-gradient(135deg,var(--navy),#1c3a5e); color:#fff; padding:18px 18px 20px; padding-top:calc(18px + env(safe-area-inset-top,0px)); }
+  header.top .brand { font-size:13px; letter-spacing:.3px; opacity:.9; }
+  header.top .hi { font-size:22px; font-weight:800; margin-top:4px; }
+  header.top .sub { color:#c6dbec; font-size:13px; margin-top:2px; }
+
+  main { max-width:720px; margin:0 auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+  .card { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 4px 14px rgba(17,34,59,.07); }
+  .card h2 { margin:0 0 12px; font-size:15px; color:var(--navy); display:flex; align-items:center; gap:8px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .empty { text-align:center; color:var(--muted); padding:18px 8px; }
+  .empty .ico { font-size:30px; display:block; margin-bottom:6px; }
+
+  .ring { display:flex; align-items:center; gap:16px; }
+  .ring .pct { font-size:32px; font-weight:800; color:var(--teal); min-width:76px; }
+  .steps { list-style:none; margin:0; padding:0; flex:1; }
+  .steps li { display:flex; align-items:center; gap:10px; padding:5px 0; font-size:14px; }
+  .dot { width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:13px; color:#fff; flex:0 0 auto; }
+  .dot.on { background:var(--ok); } .dot.off { background:#b9c3ce; }
+
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tile { background:var(--mint); border-radius:14px; padding:14px; }
+  .tile .big { font-size:26px; font-weight:800; color:var(--navy); }
+  .tile .lbl { font-size:12px; color:#4a5865; }
+
+  .item { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .item:last-child { border-bottom:0; }
+  .item .meta { color:var(--muted); font-size:12px; }
+  .badge { font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:#eef1f4; color:#41505f; white-space:nowrap; }
+  .badge.ok { background:#e4f6ea; color:var(--ok); } .badge.wait { background:#f6ecd0; color:var(--amber); }
+
+  button { font-family:inherit; background:var(--teal); color:#fff; border:0; border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer; width:100%; margin-top:10px; min-height:46px; }
+  button.ghost { background:#eef3f7; color:var(--navy); }
+  button.mini { width:auto; padding:8px 12px; font-size:13px; margin:0; min-height:38px; }
+  button:disabled { opacity:.55; cursor:default; }
+  .row { display:flex; gap:8px; align-items:center; }
+
+  .hidden { display:none !important; }
+
+  /* Navigation par onglets (bas d'écran, mobile-first) */
+  nav.tabs { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line);
+    display:flex; padding-bottom:var(--safe-b); z-index:10; }
+  nav.tabs button { background:none; color:var(--muted); border:0; border-radius:0; margin:0; flex:1; min-height:58px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; padding:6px 2px; }
+  nav.tabs button .ic { font-size:20px; line-height:1; }
+  nav.tabs button[aria-selected="true"] { color:var(--teal); }
+  nav.tabs button[aria-selected="true"] .ic { transform:translateY(-1px); }
+
+  @media (min-width:720px) { .grid { grid-template-columns:1fr 1fr 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Rhéos · Mon espace</div>
+  <div class="hi" id="hi">Bienvenue 👋</div>
+  <div class="sub" id="sub">Votre dossier, accessible à vous seul·e.</div>
+</header>
+
+<main>
+  <!-- Écran de démarrage (démo) -->
+  <section class="card" id="startCard">
+    <h2>👋 Bienvenue dans votre espace</h2>
+    <p class="muted">Démonstration : on prépare un collaborateur d'exemple et on ouvre son espace personnel (lecture seule, données limitées à lui-même).</p>
+    <button id="startBtn">Ouvrir mon espace (démo)</button>
+  </section>
+
+  <!-- Onglet : Mon arrivée -->
+  <section class="panel" id="tab-home" role="tabpanel" aria-labelledby="nav-home">
+    <div class="card">
+      <h2>🚀 Mon arrivée</h2>
+      <div class="ring">
+        <div class="pct" id="pct" aria-live="polite">0%</div>
+        <ul class="steps" id="steps" aria-label="Étapes d'intégration"></ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="grid">
+        <div class="tile"><div class="big" id="tDocs">0</div><div class="lbl">📄 Mes documents</div></div>
+        <div class="tile"><div class="big" id="tLeave">0</div><div class="lbl">🌴 Congés restants (j)</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Onglet : Mon contrat -->
+  <section class="panel hidden" id="tab-contract" role="tabpanel" aria-labelledby="nav-contract">
+    <div class="card">
+      <h2>📝 Mon contrat</h2>
+      <div id="contract"></div>
+      <button class="ghost" id="toDocsBtn">Voir mes documents contractuels →</button>
+    </div>
+    <div class="card">
+      <h2>🙋 Mes informations</h2>
+      <div id="profile"></div>
+      <p class="muted" style="margin-top:10px">Vos données sont en lecture seule. Une modification passe par une <b>demande de correction</b> validée par les RH.</p>
+      <button class="ghost" id="changeReqBtn">Demander une correction</button>
+    </div>
+  </section>
+
+  <!-- Onglet : Mes documents -->
+  <section class="panel hidden" id="tab-docs" role="tabpanel" aria-labelledby="nav-docs">
+    <div class="card">
+      <h2>📁 Mon coffre-fort</h2>
+      <div id="docs"></div>
+    </div>
+  </section>
+
+  <!-- Onglet : Mes congés -->
+  <section class="panel hidden" id="tab-leave" role="tabpanel" aria-labelledby="nav-leave">
+    <div class="card">
+      <h2>🌴 Mes soldes</h2>
+      <div id="balances"></div>
+    </div>
+    <div class="card">
+      <h2>🗓️ Mes demandes</h2>
+      <div id="leaves"></div>
+      <button id="askLeaveBtn">Poser un congé</button>
+    </div>
+  </section>
+
+  <!-- Onglet : Mon planning -->
+  <section class="panel hidden" id="tab-plan" role="tabpanel" aria-labelledby="nav-plan">
+    <div class="card">
+      <h2>📅 Mon planning</h2>
+      <div id="plan"></div>
+      <button class="ghost" id="clockBtn">Pointer aujourd'hui (09:00–17:00)</button>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist" aria-label="Navigation de mon espace">
+  <button id="nav-home"     role="tab" aria-controls="tab-home"     aria-selected="true"  data-tab="home"><span class="ic" aria-hidden="true">🏠</span>Arrivée</button>
+  <button id="nav-contract" role="tab" aria-controls="tab-contract" aria-selected="false" data-tab="contract"><span class="ic" aria-hidden="true">📝</span>Contrat</button>
+  <button id="nav-docs"     role="tab" aria-controls="tab-docs"     aria-selected="false" data-tab="docs"><span class="ic" aria-hidden="true">📁</span>Documents</button>
+  <button id="nav-leave"    role="tab" aria-controls="tab-leave"    aria-selected="false" data-tab="leave"><span class="ic" aria-hidden="true">🌴</span>Congés</button>
+  <button id="nav-plan"     role="tab" aria-controls="tab-plan"     aria-selected="false" data-tab="plan"><span class="ic" aria-hidden="true">📅</span>Planning</button>
+</nav>
+
+<script>
+const API = "/api/v1";
+let TOKEN = null;
+const $ = (id) => document.getElementById(id);
+
+async function api(path, method="GET", body, token=TOKEN){
+  const r = await fetch(API+path, { method,
+    headers:{ "content-type":"application/json", ...(token?{authorization:"Bearer "+token}:{}) },
+    body: body?JSON.stringify(body):undefined });
+  const d = await r.json().catch(()=> ({}));
+  if(!r.ok) throw new Error(d.message || ("Erreur "+r.status));
+  return d;
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+const empty = (ico, txt) => `<div class="empty"><span class="ico" aria-hidden="true">${ico}</span>${txt}</div>`;
+const badge = (st) => `<span class="badge ${st==='APPROVED'||st==='ACTIVE'||st==='SIGNED'?'ok':(st==='REQUESTED'||st==='MANAGER_APPROVED'||st==='PENDING'?'wait':'')}">${esc(st)}</span>`;
+
+// --- Navigation par onglets (souris + clavier) ---
+const tabs = [...document.querySelectorAll('nav.tabs [role=tab]')];
+function selectTab(name){
+  tabs.forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.setAttribute("aria-selected", on ? "true" : "false");
+    $("tab-"+t.dataset.tab).classList.toggle("hidden", !on);
+  });
+}
+tabs.forEach((t, i) => {
+  t.addEventListener("click", () => selectTab(t.dataset.tab));
+  t.addEventListener("keydown", (e) => {
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+      e.preventDefault();
+      const n = (i + (e.key==="ArrowRight"?1:tabs.length-1)) % tabs.length;
+      tabs[n].focus(); selectTab(tabs[n].dataset.tab);
+    }
+  });
+});
+
+// --- Démo : prépare un collaborateur et ouvre son espace ---
+$("startBtn").addEventListener("click", startDemo);
+async function startDemo(){
+  const btn = $("startBtn"); btn.disabled = true; $("sub").textContent = "Préparation…";
+  try {
+    const admin = (await api("/auth/login","POST",{ email:"admin@acme", password:"secret" }, null)).token;
+    const co = await api("/companies","POST",{ legalName:"ACME SAS", siren:"552100554" }, undefined, admin);
+    const est = await api(`/companies/${co.id}/establishments`,"POST",{ siret:"55210055400013", name:"Établissement Marseille", idcc:"2216" }, undefined, admin);
+    const pos = await api(`/companies/${co.id}/positions`,"POST",{ title:"Conseiller", coefficient:110 }, undefined, admin);
+    const hire = await api("/employments","POST",{ person:{ lastName:"Dupont", firstName:"Marie" }, legalEntityId:co.id, administrativeEstablishmentId:est.id, positionId:pos.id, startDate:"2026-09-01", contractType:"CDI", grossMonthly:2000, workingTime:35 }, undefined, admin);
+    // Un document de contrat déposé, mis EN ATTENTE de signature du collaborateur
+    const doc = await api(`/persons/${hire.employment.personId}/documents`,"POST",{ type:"CONTRACT", label:"Contrat de travail CDI", content:"contrat-marie" }, undefined, admin);
+    await api(`/documents/${doc.id}/signature/request`,"POST",{ signers:["marie"] }, undefined, admin);
+    await api(`/employments/${hire.employment.id}/shifts`,"POST",{ date:"2026-09-07", startTime:"09:00", endTime:"17:00" }, undefined, admin);
+    // Jeton du collaborateur (démo) rattaché à sa personne
+    TOKEN = (await api("/auth/dev-token","POST",{ tenantId:"ACME", personId:hire.employment.personId, roles:["Employee"], sub:"me" }, null)).token;
+    $("startCard").classList.add("hidden");
+    await loadAll();
+  } catch(e){ $("sub").textContent = "Erreur démo : " + e.message; btn.disabled = false; }
+}
+
+async function loadAll(){
+  const me = await api("/me");
+  $("hi").textContent = `Bonjour ${esc(me.greetingName)} 👋`;
+  $("sub").textContent = `${esc(me.position||"Collaborateur")} · arrivé·e le ${esc(me.employment.startDate)}`;
+  $("pct").textContent = me.onboarding.percent + "%";
+  $("steps").innerHTML = me.onboarding.steps.map(s =>
+    `<li><span class="dot ${s.done?'on':'off'}" aria-hidden="true">${s.done?'✓':'○'}</span> ${esc(s.label)}</li>`).join("");
+  $("tDocs").textContent = me.counts.documents;
+  $("contract").innerHTML = me.contract
+    ? `<div class="item"><span>Type de contrat</span><b>${esc(me.contract.type)}</b></div>
+       <div class="item"><span>Temps de travail</span><b>${esc(me.contract.workingTime||"—")} h/sem</b></div>
+       <div class="item"><span>Statut</span>${badge(me.contract.status)}</div>`
+    : empty("📄","Aucun contrat enregistré.");
+  $("profile").innerHTML =
+    `<div class="item"><span>Nom</span><b>${esc(me.person.firstName)} ${esc(me.person.lastName)}</b></div>
+     <div class="item"><span>Établissement</span><b>Marseille</b></div>`;
+  await Promise.all([loadLeaves(), loadPlanning(), loadDocs()]);
+}
+
+async function loadLeaves(){
+  const d = await api("/me/leaves");
+  $("tLeave").textContent = d.balance.remaining;
+  $("balances").innerHTML = Object.values(d.balances).map(b =>
+    `<div class="item"><span>${b.type==='PAID'?'Congés payés':esc(b.type)}</span>
+       <b>${b.remaining} j</b><span class="meta">acquis ${b.acquired} · pris ${b.taken}</span></div>`).join("");
+  $("leaves").innerHTML = d.leaves.length ? d.leaves.map(l =>
+    `<div class="item"><span>${esc(l.type)} · ${l.days} j<div class="meta">${esc(l.startDate)} → ${esc(l.endDate)}</div></span>${badge(l.status)}</div>`).join("")
+    : empty("🗓️","Aucune demande de congé pour l'instant.");
+}
+async function loadPlanning(){
+  const p = await api("/me/planning");
+  $("plan").innerHTML = p.length ? p.map(s =>
+    `<div class="item"><span>${esc(s.date)}</span><b>${esc(s.startTime)}–${esc(s.endTime)} · ${esc(s.hours)} h</b></div>`).join("")
+    : empty("📅","Aucun créneau planifié.");
+}
+async function loadDocs(){
+  const docs = await api("/me/documents");
+  $("tDocs").textContent = docs.length;
+  $("docs").innerHTML = docs.length ? docs.map(x => {
+    const pending = x.signatureStatus === "PENDING";
+    return `<div class="item"><span>${esc(x.label)}<div class="meta">${esc(x.type)}</div></span>
+      <span class="row">${badge(pending?'PENDING':(x.signatureStatus||'—'))}
+      ${pending?`<button class="mini" data-sign="${esc(x.id)}">Signer</button>`:''}</span></div>`;
+  }).join("") : empty("📁","Votre coffre-fort est vide.");
+  docs.forEach(()=>{});
+  document.querySelectorAll('[data-sign]').forEach(b =>
+    b.addEventListener("click", () => signDoc(b.getAttribute("data-sign"))));
+}
+
+async function signDoc(id){
+  try { await api(`/me/documents/${id}/sign`,"POST",{}); await Promise.all([loadDocs(), loadAll()]); }
+  catch(e){ alert("Signature : " + e.message); }
+}
+$("askLeaveBtn").addEventListener("click", async () => {
+  try { await api("/me/leaves","POST",{ type:"PAID", startDate:"2026-12-07", endDate:"2026-12-11" }); await loadLeaves(); }
+  catch(e){ alert("Congé : " + e.message); }
+});
+$("clockBtn").addEventListener("click", async () => {
+  const today = new Date().toISOString().slice(0,10);
+  try { await api("/me/clock","POST",{ date:today, clockIn:"09:00", clockOut:"17:00" }); await loadPlanning(); }
+  catch(e){ alert("Pointage : " + e.message); }
+});
+$("toDocsBtn").addEventListener("click", () => selectTab("docs"));
+$("changeReqBtn").addEventListener("click", () => alert("Votre demande de correction sera transmise aux RH pour validation (workflow REQUEST → VALIDATION → mise à jour)."));
+
+// --- Service worker (PWA installable, cache lecture seule) ---
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>

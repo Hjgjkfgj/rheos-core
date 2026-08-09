@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Rhéos">
+  <rect width="512" height="512" rx="112" fill="#11223b"/>
+  <path d="M150 356V156h96c44 0 74 26 74 66 0 30-17 52-45 61l52 73h-59l-46-67h-18v67h-54zm54-110h38c18 0 29-10 29-25s-11-24-29-24h-38v49z" fill="#1f7a8c"/>
+  <circle cx="360" cy="196" r="26" fill="#e7f5f3"/>
+</svg>

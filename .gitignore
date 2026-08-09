@@ -1,0 +1,30 @@
+# Dépendances
+node_modules/
+
+# Build / artefacts
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Secrets & environnement (JAMAIS suivis) — .env.example reste le modèle
+.env
+.env.*
+!.env.example
+
+# Sauvegardes / dumps
+*.dump
+*.sql.gz
+*.bak
+backup*.json
+dump*.json
+
+# Prisma (client généré)
+prisma/generated/
+
+# Divers OS / éditeurs
+.DS_Store
+coverage/
+*.tmp

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rhéos — Suite RH</title>
+<style>
+  :root{ --navy:#11223b; --navy2:#0d1a2e; --teal:#1f7a8c; --teal2:#2b95a8; --bg:#eef2f6; --line:#e2e7ee; --ink:#1c2530; --muted:#6b7785; --ok:#1b7f3b; --warn:#b26a00; --crit:#b00020; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); }
+  .app{ display:grid; grid-template-columns:270px 1fr; height:100vh; }
+
+  /* Sidebar */
+  .side{ background:var(--navy); color:#cfe0ee; overflow-y:auto; }
+  .brand{ padding:18px 18px 14px; border-bottom:1px solid #1e3350; }
+  .brand b{ color:#fff; font-size:22px; letter-spacing:.5px; }
+  .brand span{ display:block; color:#8fb0cc; font-size:11px; margin-top:2px; }
+  nav{ padding:8px 0 40px; }
+  details{ border-bottom:1px solid #16273f; }
+  summary{ list-style:none; cursor:pointer; padding:12px 16px; font-size:13.5px; font-weight:600; color:#e7f0f8; display:flex; align-items:center; gap:10px; user-select:none; }
+  summary::-webkit-details-marker{ display:none; }
+  summary .chev{ margin-left:auto; transition:.2s; color:#7fa4c6; }
+  details[open] summary .chev{ transform:rotate(90deg); }
+  summary:hover{ background:#16273f; }
+  .sub{ padding:2px 0 8px; }
+  .sub a{ display:block; padding:8px 16px 8px 42px; font-size:13px; color:#b8cbe0; cursor:pointer; }
+  .sub a:hover{ background:#0f2138; color:#fff; }
+  .sub a.active{ background:var(--teal); color:#fff; }
+
+  /* Main */
+  main{ overflow-y:auto; }
+  .topbar{ background:#fff; border-bottom:1px solid var(--line); padding:12px 22px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:5; }
+  .topbar h1{ font-size:16px; margin:0; color:var(--navy); }
+  .topbar .right{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .who{ font-size:12px; color:var(--muted); margin-right:6px; }
+  .chip{ background:#eef3f7; border:1px solid var(--line); color:var(--navy); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+  .chip:hover{ background:#e4ecf3; }
+  .content{ padding:22px; max-width:1000px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; }
+  .card h2{ margin:0 0 4px; font-size:16px; color:var(--navy); }
+  .card p.desc{ margin:0 0 14px; color:var(--muted); font-size:13px; }
+  label{ display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
+  input,select{ width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; } .row > div{ flex:1; min-width:140px; }
+  button.act{ background:var(--teal); color:#fff; border:0; border-radius:9px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; margin-top:12px; }
+  button.act:hover{ background:var(--teal2); }
+  button.ghost{ background:#eef3f7; color:var(--navy); }
+  table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid #eef1f4; }
+  th{ color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .kv{ display:grid; grid-template-columns:200px 1fr; gap:2px 12px; font-size:14px; }
+  .kv div.k{ color:var(--muted); padding:6px 0; }
+  .kv div.v{ padding:6px 0; font-weight:500; }
+  .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; color:#fff; }
+  .s-CRITICAL,.s-OVERDUE{ background:var(--crit);} .s-IMPORTANT,.s-DUE_SOON{ background:var(--warn);} .s-ACTION{ background:var(--teal);} .s-INFO,.s-UPCOMING{ background:#7a8794;}
+  .ok{ color:var(--ok); font-weight:600; } .muted{ color:var(--muted); }
+  .toast{ position:fixed; right:18px; bottom:18px; background:var(--navy); color:#fff; padding:12px 16px; border-radius:10px; font-size:14px; opacity:0; transform:translateY(8px); transition:.25s; z-index:20; }
+  .toast.show{ opacity:1; transform:none; }
+  .toast.err{ background:var(--crit); }
+  .banner{ background:#fff7e6; border:1px solid #f0dca8; color:#7a5b00; padding:10px 12px; border-radius:8px; font-size:13px; }
+  .tree{ list-style:none; padding-left:16px; } .tree li{ padding:4px 0; }
+  .tree .node{ background:#f3f7fa; border:1px solid var(--line); border-radius:8px; padding:6px 10px; display:inline-block; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><b>Rhéos</b><span>le Cognitive OS des RH</span></div>
+    <nav id="nav"></nav>
+  </aside>
+  <main>
+    <div class="topbar">
+      <h1 id="viewTitle">Tableau de bord</h1>
+      <div class="right">
+        <span class="who" id="who">non connecté</span>
+        <button class="chip" onclick="quick('admin@acme')">Admin</button>
+        <button class="chip" onclick="quick('rh@acme')">RH</button>
+        <button class="chip" onclick="quick('dg@acme')">DG</button>
+        <a class="chip" href="/espace" target="_blank">Espace collaborateur ↗</a>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API="/api/v1";
+const S={ token:null, user:null, companyId:null, establishmentId:null, positionId:null,
+  employmentId:null, contractId:null, personId:null, docId:null, leaveId:null, amendmentId:null };
+const $=id=>document.getElementById(id);
+
+/* ---------- Menu : 9 blocs déroulants ---------- */
+const MENU=[
+  { t:"📊 Tableau de bord", open:true, items:[
+    ["Briefing du jour", "dashboard"], ["Notifications", "notifs"] ]},
+  { t:"🏢 Entreprise & Référentiel", items:[
+    ["Créer une société","company"], ["Ajouter un établissement","establishment"],
+    ["Effectif & obligations","workforce"], ["Simuler des embauches","simulate"],
+    ["Organigramme","org"] ]},
+  { t:"🗂️ Gestion administrative", items:[
+    ["Éditer une embauche","hire"], ["Signer le contrat","signContract"],
+    ["Créer un avenant","amendment"], ["Faire une sortie","departure"],
+    ["Dossier collaborateur (360)","dossier"], ["Registre du personnel","registry"] ]},
+  { t:"⏱️ Temps & Activité", items:[
+    ["Planifier un créneau","shift"], ["Pointer","clock"], ["Synthèse des temps","timesummary"],
+    ["Demander un congé","leaveReq"], ["Valider un congé","leaveApprove"] ]},
+  { t:"💶 Paie", items:[
+    ["Préparer les variables (mois)","payroll"], ["Lot d'entreprise","payrollBatch"] ]},
+  { t:"📈 Pilotage économique", items:[
+    ["Tableau de bord financier","pilotage"], ["Définir le budget","budget"], ["Simulateur de coûts","costsim"], ["Effectif","workforce"] ]},
+  { t:"🎓 Carrière & Compétences", items:[
+    ["Compétences / habilitations","competencies"], ["Formations","trainings"], ["Entretiens","reviews"] ]},
+  { t:"🩺 Santé & Prévention", items:[
+    ["DUERP (risques)","duerp"], ["Accidents du travail","accidents"], ["Programmer une visite médicale","medical"] ]},
+  { t:"🧑‍⚖️ Instances représentatives (IRP)", items:[
+    ["CSE / CSSCT (mandats)","cse"], ["Réunions & PV","meetings"], ["Élections professionnelles","elections"], ["NAO","nao"] ]},
+  { t:"✅ Conformité & Veille", items:[
+    ["Obligations","obligations"], ["Échéances (veille)","deadlines"] ]},
+  { t:"🏛️ Institutions & Pouvoirs publics", items:[
+    ["Inspection du travail","authIT"], ["URSSAF / DSN","authUrssaf"], ["CARSAT / prévention","authCarsat"], ["Toutes les interactions","authList"] ]},
+  { t:"🔒 Coffre-fort documentaire", items:[
+    ["Déposer un document","deposit"], ["Demander signature","reqSign"],
+    ["Signer un document","signDoc"], ["Mes documents","listDocs"] ]},
+];
+function buildNav(){
+  $("nav").innerHTML = MENU.map((g,gi)=>`
+    <details ${g.open?"open":""}>
+      <summary>${g.t}<span class="chev">▸</span></summary>
+      <div class="sub">${g.items.map(([label,route])=>`<a data-r="${route}" onclick="go('${route}',this)">${label}</a>`).join("")}</div>
+    </details>`).join("");
+}
+
+/* ---------- API ---------- */
+async function api(path, method="GET", body){
+  const r = await fetch(API+path, { method, headers:{ "content-type":"application/json", ...(S.token?{authorization:"Bearer "+S.token}:{}) }, body: body?JSON.stringify(body):undefined });
+  let d; try{ d=await r.json(); }catch{ d=await r.text(); }
+  if(!r.ok) throw new Error((d&&d.message)||("Erreur "+r.status));
+  return d;
+}
+function toast(msg, err=false){ const t=$("toast"); t.textContent=msg; t.className="toast show"+(err?" err":""); setTimeout(()=>t.className="toast",2600); }
+function need(){ if(!S.token){ toast("Connecte-toi d'abord (Admin/RH/DG en haut).",true); throw new Error("auth"); } }
+
+async function login(email){ const d=await api("/auth/login","POST",{email,password:"secret"}); S.token=d.token; S.user=email; $("who").textContent="connecté : "+email; }
+async function quick(email){ try{ await login(email); toast("Connecté : "+email); }catch(e){ toast(e.message,true);} }
+
+/* ---------- Rendu générique ---------- */
+function kv(obj){ return `<div class="kv">${Object.entries(obj).map(([k,v])=>`<div class="k">${k}</div><div class="v">${fmt(v)}</div>`).join("")}</div>`; }
+function fmt(v){ if(v===null||v===undefined) return '<span class="muted">—</span>'; if(typeof v==="object") return `<code>${JSON.stringify(v)}</code>`; return String(v); }
+function table(arr){ if(!arr.length) return '<p class="muted">Aucun élément.</p>';
+  const cols=[...new Set(arr.flatMap(o=>Object.keys(o)))];
+  return `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${
+    arr.map(o=>`<tr>${cols.map(c=>`<td>${sev(c,o[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>`; }
+function sev(col,val){ if((col==="status"||col==="severity")&&typeof val==="string") return `<span class="pill s-${val}">${val}</span>`; return fmt(val); }
+function panel(title,html){ $("viewTitle").textContent=title; $("content").innerHTML=`<div class="card"><h2>${title}</h2>${html}</div>`; }
+function result(title,data){ const html = Array.isArray(data)?table(data):kv(data); $("content").insertAdjacentHTML("beforeend",`<div class="card"><h2>${title}</h2>${html}</div>`); }
+
+/* ---------- Navigation ---------- */
+function go(route, el){ document.querySelectorAll('.sub a').forEach(a=>a.classList.remove('active')); if(el) el.classList.add('active'); (VIEWS[route]||VIEWS.soon)(); }
+
+const F = (fields)=> fields.map(f=> f.type==="select"
+  ? `<div><label>${f.label}</label><select id="${f.id}">${f.options.map(o=>`<option>${o}</option>`).join("")}</select></div>`
+  : `<div><label>${f.label}</label><input id="${f.id}" value="${f.val??""}" placeholder="${f.ph??""}"/></div>`).join("");
+
+const VIEWS = {
+  soon(){ panel("Module à venir", `<div class="banner">Ce module fait partie de la feuille de route et sera activé prochainement. Les briques déjà disponibles sont utilisables dans les autres blocs.</div>`); },
+
+  async dashboard(){ need(); panel("Tableau de bord",`<p class="desc">Briefing du Digital RH Officer.</p><div id="z"></div>`);
+    try{ const b=await api("/rh-officer/briefing");
+      $("z").innerHTML = `<div class="banner" style="background:#eef7f6;border-color:#bfe3dd;color:#0d5c52">${b.narrative}</div>
+        <h2 style="margin-top:16px">Effectif</h2>${kv({ "Effectif":b.workforce.headcount, "Prochain seuil":b.workforce.nextThreshold?`${b.workforce.nextThreshold.threshold} (dans ${b.workforce.nextThreshold.remaining})`:"—" })}
+        <h2 style="margin-top:16px">Recommandations</h2>${b.recommendations.length?("<ul>"+b.recommendations.map(r=>`<li>${r}</li>`).join("")+"</ul>"):'<p class="muted">Rien à signaler.</p>'}`;
+    }catch(e){ toast(e.message,true);} },
+
+  async notifs(){ need(); panel("Notifications",`<p class="desc">Actions en attente, par priorité.</p>`);
+    try{ const n=await api("/notifications"); result("Alertes ("+n.items.length+")", n.items.map(i=>({ priorité:i.severity, catégorie:i.category, objet:i.title }))); }catch(e){ toast(e.message,true);} },
+
+  company(){ need(); panel("Créer une société", `<p class="desc">Onboarding de l'entité juridique.</p>
+    <div class="row">${F([{id:"legalName",label:"Raison sociale",val:"ACME SAS"},{id:"siren",label:"SIREN (9 chiffres)",val:"552100554"}])}</div>
+    <button class="act" onclick="doCompany()">Créer la société</button>`); },
+
+  establishment(){ need(); panel("Ajouter un établissement", `<p class="desc">Rattaché à la société courante.</p>
+    <div class="row">${F([{id:"siret",label:"SIRET (14 chiffres)",val:"55210055400013"},{id:"estName",label:"Nom",val:"Site Marseille"},{id:"idcc",label:"IDCC (convention)",val:"2216"}])}</div>
+    <button class="act" onclick="doEstablishment()">Créer l'établissement</button>`); },
+
+  hire(){ need(); panel("Éditer une embauche", `<p class="desc">Crée personne + contrat + affectation. La convention datée s'applique au coefficient.</p>
+    <div class="row">${F([{id:"lastName",label:"Nom",val:"Dupont"},{id:"firstName",label:"Prénom",val:"Marie"}])}</div>
+    <div class="row">${F([{id:"startDate",label:"Date d'entrée",val:"2026-09-01"},{id:"contractType",label:"Type",type:"select",options:["CDI","CDD","APPRENTICESHIP","SEASONAL"]},{id:"gross",label:"Brut mensuel (€)",val:"2000"},{id:"coef",label:"Coefficient",val:"110"}])}</div>
+    <button class="act" onclick="doHire()">Embaucher</button>`); },
+
+  signContract(){ need(); panel("Signer le contrat", `<p class="desc">Nécessite le rôle DG (signataire).</p>
+    <p class="muted">Contrat courant : ${S.contractId||"— (fais d'abord une embauche)"}</p>
+    <button class="act" onclick="doSign()">Signer</button>`); },
+
+  amendment(){ need(); panel("Créer un avenant", `<p class="desc">Modifie le contrat courant (ex. augmentation). Signature par le DG.</p>
+    <div class="row">${F([{id:"amMontant",label:"Nouveau brut mensuel (€)",val:"2300"},{id:"amDate",label:"Date d'effet",val:"2026-12-01"}])}</div>
+    <button class="act" onclick="doAmendment()">Créer l'avenant</button>
+    <button class="act ghost" onclick="doSignAmendment()">Signer l'avenant (DG)</button>`); },
+
+  departure(){ need(); panel("Faire une sortie", `<p class="desc">Déclare la fin de relation (rôle DG).</p>
+    <div class="row">${F([{id:"endDate",label:"Date de sortie",val:"2027-03-31"},{id:"reason",label:"Motif",val:"démission"}])}</div>
+    <button class="act" onclick="doDeparture()">Déclarer la sortie</button>`); },
+
+  async dossier(){ need(); if(!S.employmentId){ panel("Dossier collaborateur","<p class='muted'>Fais d'abord une embauche.</p>"); return; }
+    panel("Dossier collaborateur (360)","");
+    try{ const d=await api(`/employments/${S.employmentId}/employee360`);
+      $("content").innerHTML = `<div class="card"><h2>${d.person.firstName} ${d.person.lastName}</h2>
+        ${kv({ Poste:d.currentAssignment?.positionId?("coef "+(d.currentContract?.coefficient||"")):"—", "Type contrat":d.currentContract?.type, "Statut":d.employment.status, "Brut mensuel":d.currentContract?.grossMonthly, "Entrée":d.employment.startDate })}
+        <h2 style="margin-top:14px">Historique</h2>${table((d.timeline||[]).map(e=>({ type:e.type, date:(e.effectiveDate||e.occurredAt) })))}</div>`;
+    }catch(e){ toast(e.message,true);} },
+
+  async registry(){ need(); if(!S.companyId){ panel("Registre","<p class='muted'>Crée d'abord une société.</p>"); return; }
+    panel("Registre unique du personnel","");
+    try{ const r=await api(`/companies/${S.companyId}/registry`); result("Registre ("+r.length+")", r); }catch(e){ toast(e.message,true);} },
+
+  async workforce(){ need(); if(!S.companyId){ panel("Effectif","<p class='muted'>Crée d'abord une société.</p>"); return; }
+    panel("Effectif & obligations","");
+    try{ const w=await api(`/companies/${S.companyId}/workforce`);
+      $("content").innerHTML=`<div class="card"><h2>Effectif</h2>${kv({ "Effectif actif":w.headcount })}
+        <h2 style="margin-top:14px">Obligations applicables</h2>${table(w.applicableObligations.map(o=>({ code:o.code, obligation:o.title, seuil:o.threshold })))}</div>`;
+    }catch(e){ toast(e.message,true);} },
+
+  simulate(){ need(); panel("Simulateur d'embauches", `<p class="desc">« Et si j'embauche N personnes ? » (sans rien écrire).</p>
+    <div class="row">${F([{id:"nHire",label:"Nombre d'embauches",val:"8"}])}</div>
+    <button class="act" onclick="doSimulate()">Simuler</button>`); },
+
+  async org(){ need(); if(!S.companyId){ panel("Organigramme","<p class='muted'>Crée d'abord une société.</p>"); return; }
+    panel("Organigramme","");
+    try{ const o=await api(`/companies/${S.companyId}/org-chart`);
+      const render=n=>`<li><span class="node"><b>${n.name}</b>${n.position?` · ${n.position}`:""}</span>${n.reports?.length?`<ul class="tree">${n.reports.map(render).join("")}</ul>`:""}</li>`;
+      $("content").innerHTML=`<div class="card"><h2>Organigramme (${o.count})</h2><ul class="tree">${o.roots.map(render).join("")||'<p class="muted">Aucun collaborateur.</p>'}</ul></div>`;
+    }catch(e){ toast(e.message,true);} },
+
+  shift(){ need(); panel("Planifier un créneau", `<div class="row">${F([{id:"shDate",label:"Date",val:"2026-06-02"},{id:"shStart",label:"Début",val:"09:00"},{id:"shEnd",label:"Fin",val:"17:00"}])}</div><button class="act" onclick="doShift()">Planifier</button>`); },
+  clock(){ need(); panel("Pointer", `<div class="row">${F([{id:"clDate",label:"Date",val:"2026-06-02"},{id:"clIn",label:"Arrivée",val:"09:00"},{id:"clOut",label:"Départ",val:"17:00"}])}</div><button class="act" onclick="doClock()">Enregistrer le pointage</button>`); },
+  timesummary(){ need(); panel("Synthèse des temps", `<div class="row">${F([{id:"tsY",label:"Année",val:"2026"},{id:"tsM",label:"Mois",val:"6"}])}</div><button class="act" onclick="doTimeSummary()">Calculer</button>`); },
+  leaveReq(){ need(); panel("Demander un congé", `<div class="row">${F([{id:"lvStart",label:"Début",val:"2026-12-01"},{id:"lvEnd",label:"Fin",val:"2026-12-05"}])}</div><button class="act" onclick="doLeaveReq()">Demander</button>`); },
+  leaveApprove(){ need(); panel("Valider un congé", `<p class="muted">Dernière demande : ${S.leaveId||"—"}</p><button class="act" onclick="doLeaveApprove()">Approuver</button>`); },
+
+  payroll(){ need(); panel("Préparer les variables de paie", `<p class="desc">Agrégation (base, congés, heures). Calcul délégué au moteur certifié.</p>
+    <div class="row">${F([{id:"pyY",label:"Année",val:"2026"},{id:"pyM",label:"Mois",val:"12"}])}</div><button class="act" onclick="doPayroll()">Préparer</button>`); },
+  async payrollBatch(){ need(); if(!S.companyId) return panel("Lot de paie","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Lot d'entreprise",""); try{ const b=await api(`/companies/${S.companyId}/payroll-batch?year=2026&month=12`); result(`Lot ${b.period} (${b.count})`, b.items.map(i=>({ collaborateur:i.employmentId.slice(0,8), brut:i.base.grossMonthly, heures:i.workedHours, "HS":i.overtimeHours }))); }catch(e){ toast(e.message,true);} },
+
+  medical(){ need(); panel("Programmer une visite médicale", `<p class="desc">Crée une échéance de veille sur le collaborateur courant.</p>
+    <div class="row">${F([{id:"mvDate",label:"Date d'échéance",val:"2026-10-15"}])}</div><button class="act" onclick="doMedical()">Programmer</button>`); },
+
+  async obligations(){ need(); if(!S.companyId) return panel("Obligations","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Obligations",""); try{ const o=await api(`/companies/${S.companyId}/obligations`); result("Obligations ("+o.length+")", o.map(x=>({ code:x.code, obligation:x.title, statut:x.status }))); }catch(e){ toast(e.message,true);} },
+  async deadlines(){ need(); if(!S.companyId) return panel("Échéances","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Échéances (veille)",""); try{ const d=await api(`/companies/${S.companyId}/deadlines`); result("Échéances ("+d.items.length+")", d.items.map(i=>({ type:i.type, objet:i.label, échéance:i.dueDate, statut:i.status }))); }catch(e){ toast(e.message,true);} },
+
+  deposit(){ need(); panel("Déposer un document", `<p class="desc">Scellé par empreinte SHA-256 (coffre-fort).</p>
+    <div class="row">${F([{id:"docLabel",label:"Libellé",val:"Contrat CDI signé"},{id:"docType",label:"Type",type:"select",options:["CONTRACT","PAYSLIP","ID_DOCUMENT","OTHER"]}])}</div>
+    <button class="act" onclick="doDeposit()">Déposer</button>`); },
+  reqSign(){ need(); panel("Demander la signature", `<p class="muted">Document courant : ${S.docId||"—"}</p><button class="act" onclick="doReqSign()">Demander</button>`); },
+  signDoc(){ need(); panel("Signer un document", `<p class="desc">Rôle DG.</p><p class="muted">Document courant : ${S.docId||"—"}</p><button class="act" onclick="doSignDoc()">Signer</button>`); },
+  async listDocs(){ need(); if(!S.personId) return panel("Documents","<p class='muted'>Fais d'abord une embauche/dépôt.</p>");
+    panel("Documents",""); try{ const d=await api(`/persons/${S.personId}/documents`); result("Documents ("+d.length+")", d.map(x=>({ libellé:x.label, type:x.type, signature:x.signatureStatus }))); }catch(e){ toast(e.message,true);} },
+
+  async cse(){ need(); if(!S.companyId) return panel("CSE","<p class='muted'>Crée d'abord une société.</p>");
+    panel("CSE / CSSCT — mandats", `<p class="desc">Attribue un mandat au collaborateur courant (${S.employmentId?"prêt":"— fais d'abord une embauche"}).</p>
+      <div class="row">${F([{id:"cseRole",label:"Rôle",type:"select",options:["TITULAIRE","SUPPLEANT","SECRETAIRE","TRESORIER","REFERENT_HARCELEMENT","REPRESENTANT_SYNDICAL"]},{id:"cseStart",label:"Début du mandat",val:"2026-02-01"}])}</div>
+      <button class="act" onclick="doAddMandate()">Ajouter le mandat</button><div id="mlist"></div>`);
+    try{ const l=await api(`/companies/${S.companyId}/cse/mandates`); document.getElementById("mlist").innerHTML = `<h2 style="margin-top:16px">Élus (${l.length})</h2>`+table(l.map(m=>({ élu:m.name, rôle:m.role, début:m.startDate, statut:m.status }))); }catch(e){ toast(e.message,true);} },
+
+  async meetings(){ need(); if(!S.companyId) return panel("Réunions","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Réunions & PV", `<p class="desc">Planifie une réunion (ordre du jour), puis enregistre le PV.</p>
+      <div class="row">${F([{id:"mtDate",label:"Date",val:"2026-03-15"},{id:"mtType",label:"Type",type:"select",options:["ORDINAIRE","EXTRAORDINAIRE"]}])}</div>
+      <label>Ordre du jour (séparé par des virgules)</label><input id="mtAgenda" value="Budget ASC, Conditions de travail"/>
+      <button class="act" onclick="doPlanMeeting()">Planifier la réunion</button>
+      <h2 style="margin-top:16px">Enregistrer un PV</h2>
+      <label>PV de la dernière réunion planifiée ${S.meetingId?"":"(planifie d'abord)"}</label>
+      <input id="mtMinutes" value="Décisions : ..."/>
+      <button class="act ghost" onclick="doMinutes()">Enregistrer le PV</button>
+      <div id="mtlist"></div>`);
+    try{ const l=await api(`/companies/${S.companyId}/cse/meetings`); document.getElementById("mtlist").innerHTML = `<h2 style="margin-top:16px">Réunions (${l.length})</h2>`+table(l.map(m=>({ date:m.date, type:m.type, statut:m.status, "ordre du jour":(m.agenda||[]).join(" · ") }))); }catch(e){ toast(e.message,true);} },
+
+  async pilotage(){ need(); if(!S.companyId) return panel("Pilotage","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Tableau de bord financier",""); try{ const p=await api(`/companies/${S.companyId}/pilotage`);
+      const eur=n=>n==null?"—":Number(n).toLocaleString("fr-FR")+" €";
+      $("content").innerHTML=`<div class="card"><h2>Pilotage ${p.year} <span class="muted" style="font-size:12px">(charges ${Math.round(p.chargesRate*100)}% — indicatif)</span></h2>
+        ${kv({ "Effectif":p.headcount, "ETP":p.etp, "Masse salariale brute (mois)":eur(p.masseSalarialeBruteMensuelle), "Masse salariale brute (an)":eur(p.masseSalarialeBruteAnnuelle), "Coût employeur (mois)":eur(p.coutEmployeurMensuel), "Coût employeur (an)":eur(p.coutEmployeurAnnuel), "Budget":eur(p.budget), "Écart":p.ecart==null?"—":(eur(p.ecart)+(p.ecartPct!=null?` (${p.ecartPct}%)`:"")), "Atterrissage estimé":eur(p.landingEstime) })}</div>`;
+    }catch(e){ toast(e.message,true);} },
+
+  budget(){ need(); panel("Définir le budget", `<p class="desc">Budget annuel de coût employeur (masse salariale chargée).</p>
+    <div class="row">${F([{id:"bgYear",label:"Année",val:String(new Date().getFullYear())},{id:"bgAmount",label:"Montant annuel (€)",val:"80000"}])}</div>
+    <button class="act" onclick="doSetBudget()">Enregistrer le budget</button>`); },
+
+  costsim(){ need(); panel("Simulateur de coûts", `<p class="desc">Impact annuel de N embauches à un brut mensuel moyen.</p>
+    <div class="row">${F([{id:"csN",label:"Nombre d'embauches",val:"3"},{id:"csAvg",label:"Brut mensuel moyen (€)",val:"2500"}])}</div>
+    <button class="act" onclick="doCostSim()">Simuler</button>`); },
+
+  async competencies(){ need(); if(!S.employmentId) return panel("Compétences","<p class='muted'>Fais d'abord une embauche.</p>");
+    panel("Compétences / habilitations", `<p class="desc">Une date d'expiration crée une échéance de veille (habilitation à renouveler).</p>
+      <div class="row">${F([{id:"cpName",label:"Compétence / habilitation",val:"CACES R489"},{id:"cpLevel",label:"Niveau",type:"select",options:["BEGINNER","INTERMEDIATE","ADVANCED","EXPERT"]},{id:"cpExp",label:"Expire le (option.)",val:""}])}</div>
+      <button class="act" onclick="doAddCompetency()">Ajouter</button><div id="cpz"></div>`);
+    try{ const l=await api(`/employments/${S.employmentId}/competencies`); document.getElementById("cpz").innerHTML=`<h2 style="margin-top:16px">Compétences (${l.length})</h2>`+table(l.map(c=>({ compétence:c.name, niveau:c.level, expire:c.expiresAt||"—" }))); }catch(e){ toast(e.message,true);} },
+
+  async trainings(){ need(); if(!S.employmentId) return panel("Formations","<p class='muted'>Fais d'abord une embauche.</p>");
+    panel("Formations", `<p class="desc">Une échéance crée une alerte de veille.</p>
+      <div class="row">${F([{id:"trTitle",label:"Intitulé",val:"Sécurité incendie"},{id:"trType",label:"Type",type:"select",options:["MANDATORY","SKILL","SAFETY","OTHER"]},{id:"trDue",label:"Échéance (option.)",val:""}])}</div>
+      <button class="act" onclick="doPlanTraining()">Planifier</button><div id="trz"></div>`);
+    try{ const l=await api(`/companies/${S.companyId}/trainings`); document.getElementById("trz").innerHTML=`<h2 style="margin-top:16px">Formations (${l.length})</h2>`+table(l.map(t=>({ intitulé:t.title, type:t.type, statut:t.status, échéance:t.dueDate||"—" }))); }catch(e){ toast(e.message,true);} },
+
+  async reviews(){ need(); if(!S.employmentId) return panel("Entretiens","<p class='muted'>Fais d'abord une embauche.</p>");
+    panel("Entretiens", `<div class="row">${F([{id:"rvType",label:"Type",type:"select",options:["ANNUAL","PROFESSIONAL"]},{id:"rvDate",label:"Date",val:"2026-06-01"}])}</div>
+      <button class="act" onclick="doPlanReview()">Planifier l'entretien</button>
+      <div id="rvz"></div>`);
+    try{ const l=await api(`/employments/${S.employmentId}/reviews`); document.getElementById("rvz").innerHTML=`<h2 style="margin-top:16px">Entretiens (${l.length})</h2>`+table(l.map(r=>({ type:r.type, date:r.date, statut:r.status }))); }catch(e){ toast(e.message,true);} },
+
+  async duerp(){ need(); if(!S.companyId) return panel("DUERP","<p class='muted'>Crée d'abord une société.</p>");
+    panel("DUERP — registre des risques", `<p class="desc">Cotation gravité × probabilité (1 à 4). Niveau calculé automatiquement.</p>
+      <label>Danger / risque</label><input id="rkHazard" value="Chute de hauteur"/>
+      <div class="row">${F([{id:"rkUnit",label:"Unité de travail",val:"Entrepôt"},{id:"rkG",label:"Gravité (1-4)",val:"4"},{id:"rkP",label:"Probabilité (1-4)",val:"3"}])}</div>
+      <label>Mesures existantes</label><input id="rkMeasures" value="Garde-corps, formation"/>
+      <button class="act" onclick="doAddRisk()">Ajouter le risque</button>
+      <div id="duerpz"></div>`);
+    try{ const s=await api(`/companies/${S.companyId}/duerp`); const l=await api(`/companies/${S.companyId}/risks`);
+      document.getElementById("duerpz").innerHTML = `<h2 style="margin-top:16px">Synthèse</h2>${kv({ "Risques":s.total, "Élevés":s.byLevel.HIGH, "Moyens":s.byLevel.MEDIUM, "Faibles":s.byLevel.LOW })}<h2 style="margin-top:14px">Registre</h2>`+table(l.map(r=>({ unité:r.unit||"—", danger:r.hazard, cotation:r.score, niveau:r.level, statut:r.status })));
+    }catch(e){ toast(e.message,true);} },
+
+  async accidents(){ need(); if(!S.companyId) return panel("Accidents","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Accidents du travail", `<p class="desc">Un accident grave crée une échéance de déclaration (veille).</p>
+      <label>Description</label><input id="acDesc" value="Chute dans l'escalier"/>
+      <div class="row">${F([{id:"acDate",label:"Date",val:new Date().toISOString().slice(0,10)},{id:"acSev",label:"Gravité",type:"select",options:["BENIGN","LOST_TIME","SERIOUS"]},{id:"acDays",label:"Jours perdus",val:"0"}])}</div>
+      <button class="act" onclick="doAccident()">Déclarer l'accident</button><div id="acz"></div>`);
+    try{ const l=await api(`/companies/${S.companyId}/accidents`); document.getElementById("acz").innerHTML=`<h2 style="margin-top:16px">Accidents (${l.length})</h2>`+table(l.map(a=>({ date:a.date, description:a.description, gravité:a.severity, "jours perdus":a.lostDays??0 }))); }catch(e){ toast(e.message,true);} },
+
+  authIT(){ authorityView("INSPECTION_TRAVAIL","Inspection du travail"); },
+  authUrssaf(){ authorityView("URSSAF","URSSAF / DSN"); },
+  authCarsat(){ authorityView("CARSAT","CARSAT / prévention"); },
+  async authList(){ need(); if(!S.companyId) return panel("Interactions","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Interactions avec les autorités",""); try{ const l=await api(`/companies/${S.companyId}/authority/interactions`); result("Interactions ("+l.length+")", l.map(i=>({ autorité:i.authority, type:i.type, date:i.date, échéance:i.dueDate||"—", statut:i.status }))); }catch(e){ toast(e.message,true);} },
+
+  async nao(){ need(); if(!S.companyId) return panel("NAO","<p class='muted'>Crée d'abord une société.</p>");
+    panel("NAO — Négociation Annuelle Obligatoire", `<p class="desc">Ouvre une négociation par thème puis fais évoluer son statut (accord / désaccord).</p>
+      <div class="row">${F([{id:"naoYear",label:"Année",val:String(new Date().getFullYear())},{id:"naoTheme",label:"Thème",type:"select",options:["SALAIRES","TEMPS_TRAVAIL","EGALITE_PRO","QVT","AUTRE"]},{id:"naoStart",label:"Début (option.)",val:""}])}</div>
+      <button class="act" onclick="doOpenNegotiation()">Ouvrir la négociation</button>
+      <h2 style="margin-top:16px">Faire évoluer la dernière négociation</h2>
+      <div class="row">${F([{id:"naoStatus",label:"Statut",type:"select",options:["IN_PROGRESS","AGREEMENT","DISAGREEMENT"]}])}</div>
+      <button class="act ghost" onclick="doSetNegotiationStatus()">Mettre à jour le statut</button>
+      <div id="naoz"></div>`);
+    try{ const l=await api(`/companies/${S.companyId}/negotiations`); document.getElementById("naoz").innerHTML=`<h2 style="margin-top:16px">Négociations (${l.length})</h2>`+table(l.map(n=>({ année:n.year, thème:n.theme, statut:n.status, début:n.startDate||"—" }))); }catch(e){ toast(e.message,true);} },
+
+  async elections(){ need(); if(!S.companyId) return panel("Élections","<p class='muted'>Crée d'abord une société.</p>");
+    panel("Élections professionnelles", `<p class="desc">Obligation d'organiser les élections du CSE dès 11 collaborateurs (12 mois consécutifs).</p><div id="el"></div>`);
+    try{ const o=await api(`/companies/${S.companyId}/obligations`); const cse=o.filter(x=>x.code.startsWith("CSE"));
+      document.getElementById("el").innerHTML = cse.length? table(cse.map(x=>({ code:x.code, obligation:x.title, statut:x.status }))) : '<div class="banner">Aucune obligation CSE active pour l\'instant (seuil de 11 non atteint). Le suivi se déclenche automatiquement.</div>'; }catch(e){ toast(e.message,true);} },
+};
+
+/* ---------- Actions ---------- */
+async function doCompany(){ try{ const d=await api("/companies","POST",{legalName:$("legalName").value,siren:$("siren").value}); S.companyId=d.id; toast("Société créée ✓"); result("Société créée", d); }catch(e){ toast(e.message,true);} }
+async function doEstablishment(){ try{ if(!S.companyId) throw new Error("Crée d'abord une société"); const d=await api(`/companies/${S.companyId}/establishments`,"POST",{siret:$("siret").value,name:$("estName").value,idcc:$("idcc").value}); S.establishmentId=d.id; toast("Établissement créé ✓"); result("Établissement créé",d); }catch(e){ toast(e.message,true);} }
+async function doHire(){ try{ if(!S.companyId) throw new Error("Crée d'abord une société");
+  const pos=await api(`/companies/${S.companyId}/positions`,"POST",{title:"Poste",coefficient:Number($("coef").value)}); S.positionId=pos.id;
+  const d=await api("/employments","POST",{ person:{lastName:$("lastName").value,firstName:$("firstName").value}, legalEntityId:S.companyId, administrativeEstablishmentId:S.establishmentId, positionId:pos.id, startDate:$("startDate").value, contractType:$("contractType").value, grossMonthly:Number($("gross").value), workingTime:35 });
+  S.employmentId=d.employment.id; S.contractId=d.contract.id; S.personId=d.employment.personId; toast("Embauche réalisée ✓");
+  result("Embauche", { collaborateur:$("firstName").value+" "+$("lastName").value, statut:d.employment.status, contrat:d.contract.status, coef:d.contract.coefficient, "minimum conv.":d.convention?.minimumMensuel }); }catch(e){ toast(e.message,true);} }
+async function doSign(){ try{ if(!S.contractId) throw new Error("Aucun contrat"); const d=await api(`/contracts/${S.contractId}/sign`,"POST"); toast("Contrat signé ✓"); result("Contrat", {statut:d.status}); }catch(e){ toast(e.message,true);} }
+async function doAmendment(){ try{ if(!S.contractId) throw new Error("Aucun contrat"); const d=await api(`/contracts/${S.contractId}/amendments`,"POST",{subject:"Augmentation",effectiveDate:$("amDate").value,changes:{grossMonthly:Number($("amMontant").value)}}); S.amendmentId=d.id; toast("Avenant créé ✓"); result("Avenant",{objet:d.subject,statut:d.status}); }catch(e){ toast(e.message,true);} }
+async function doSignAmendment(){ try{ if(!S.amendmentId) throw new Error("Aucun avenant"); const d=await api(`/amendments/${S.amendmentId}/sign`,"POST"); toast("Avenant signé & appliqué ✓"); result("Avenant",{statut:d.status}); }catch(e){ toast(e.message,true);} }
+async function doDeparture(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); const d=await api(`/employments/${S.employmentId}/departure`,"POST",{endDate:$("endDate").value,reason:$("reason").value}); toast("Sortie déclarée ✓"); result("Sortie",{statut:d.status,fin:d.endDate}); }catch(e){ toast(e.message,true);} }
+async function doSimulate(){ try{ if(!S.companyId) throw new Error("Crée d'abord une société"); const d=await api(`/companies/${S.companyId}/workforce/simulate`,"POST",{additionalHires:Number($("nHire").value)}); result("Simulation",{ "effectif actuel":d.current, "effectif projeté":d.projected, "seuils franchis":d.crossedThresholds.join(", ")||"aucun" }); if(d.newObligations.length) result("Nouvelles obligations", d.newObligations.map(o=>({code:o.code,obligation:o.title}))); }catch(e){ toast(e.message,true);} }
+async function doShift(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); await api(`/employments/${S.employmentId}/shifts`,"POST",{date:$("shDate").value,startTime:$("shStart").value,endTime:$("shEnd").value}); toast("Créneau planifié ✓"); }catch(e){ toast(e.message,true);} }
+async function doClock(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); await api(`/employments/${S.employmentId}/time-entries`,"POST",{date:$("clDate").value,clockIn:$("clIn").value,clockOut:$("clOut").value}); toast("Pointage enregistré ✓"); }catch(e){ toast(e.message,true);} }
+async function doTimeSummary(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); const d=await api(`/employments/${S.employmentId}/time-summary?year=${$("tsY").value}&month=${$("tsM").value}`); result("Synthèse temps",{ "prévu (h)":d.plannedHours, "réalisé (h)":d.workedHours, "écart (h)":d.variance }); }catch(e){ toast(e.message,true);} }
+async function doLeaveReq(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); const d=await api(`/employments/${S.employmentId}/leave-requests`,"POST",{type:"PAID",startDate:$("lvStart").value,endDate:$("lvEnd").value}); S.leaveId=d.id; toast("Congé demandé ✓"); result("Congé",{jours:d.days,statut:d.status}); }catch(e){ toast(e.message,true);} }
+async function doLeaveApprove(){ try{ if(!S.leaveId) throw new Error("Aucune demande"); const d=await api(`/leave-requests/${S.leaveId}/approve`,"POST"); toast("Congé approuvé ✓"); result("Congé",{statut:d.status}); }catch(e){ toast(e.message,true);} }
+async function doPayroll(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); const d=await api(`/employments/${S.employmentId}/payroll-input?year=${$("pyY").value}&month=${$("pyM").value}`); result("Variables de paie "+d.period,{ "brut":d.base.grossMonthly, "ancienneté (mois)":d.seniorityMonths, "congés":JSON.stringify(d.leaves), "heures travaillées":d.workedHours, "HS":d.overtimeHours }); }catch(e){ toast(e.message,true);} }
+async function doMedical(){ try{ if(!S.employmentId) throw new Error("Aucun collaborateur"); await api(`/employments/${S.employmentId}/deadlines`,"POST",{type:"MEDICAL_VISIT",label:"Visite médicale",dueDate:$("mvDate").value}); toast("Visite médicale programmée ✓"); }catch(e){ toast(e.message,true);} }
+async function doDeposit(){ try{ if(!S.personId) throw new Error("Fais d'abord une embauche"); const d=await api(`/persons/${S.personId}/documents`,"POST",{type:$("docType").value,label:$("docLabel").value,content:"demo-"+Date.now()}); S.docId=d.id; toast("Document déposé ✓"); result("Document",{libellé:d.label,empreinte:d.sha256.slice(0,16)+"…"}); }catch(e){ toast(e.message,true);} }
+async function doReqSign(){ try{ if(!S.docId) throw new Error("Aucun document"); await api(`/documents/${S.docId}/signature/request`,"POST"); toast("Signature demandée ✓"); }catch(e){ toast(e.message,true);} }
+async function doSignDoc(){ try{ if(!S.docId) throw new Error("Aucun document"); const d=await api(`/documents/${S.docId}/signature/sign`,"POST"); toast("Document signé ✓"); result("Document",{signature:d.signatureStatus}); }catch(e){ toast(e.message,true);} }
+async function doSetBudget(){ try{ await api(`/companies/${S.companyId}/budgets`,"POST",{ year:Number($("bgYear").value), amount:Number($("bgAmount").value) }); toast("Budget enregistré ✓"); VIEWS.pilotage(); }catch(e){ toast(e.message,true);} }
+async function doCostSim(){ try{ const d=await api(`/companies/${S.companyId}/pilotage/cost-simulate`,"POST",{ additionalHires:Number($("csN").value), avgGross:Number($("csAvg").value) }); const eur=n=>n==null?"—":Number(n).toLocaleString("fr-FR")+" €"; result("Simulation de coûts",{ "coût employeur actuel":eur(d.current), "surcoût annuel":eur(d.addedEmployerCostAnnual), "coût employeur projeté":eur(d.projectedEmployerCostAnnual), "écart budget projeté":eur(d.projectedVariance) }); }catch(e){ toast(e.message,true);} }
+async function doAddCompetency(){ try{ await api(`/employments/${S.employmentId}/competencies`,"POST",{ name:$("cpName").value, level:$("cpLevel").value, expiresAt:$("cpExp").value||undefined }); toast("Compétence ajoutée ✓"); VIEWS.competencies(); }catch(e){ toast(e.message,true);} }
+async function doPlanTraining(){ try{ await api(`/employments/${S.employmentId}/trainings`,"POST",{ title:$("trTitle").value, type:$("trType").value, dueDate:$("trDue").value||undefined }); toast("Formation planifiée ✓"); VIEWS.trainings(); }catch(e){ toast(e.message,true);} }
+async function doPlanReview(){ try{ await api(`/employments/${S.employmentId}/reviews`,"POST",{ type:$("rvType").value, date:$("rvDate").value }); toast("Entretien planifié ✓"); VIEWS.reviews(); }catch(e){ toast(e.message,true);} }
+async function doAddRisk(){ try{ await api(`/companies/${S.companyId}/risks`,"POST",{ unit:$("rkUnit").value, hazard:$("rkHazard").value, gravity:Number($("rkG").value), probability:Number($("rkP").value), measures:$("rkMeasures").value }); toast("Risque ajouté ✓"); VIEWS.duerp(); }catch(e){ toast(e.message,true);} }
+async function doAccident(){ try{ await api(`/companies/${S.companyId}/accidents`,"POST",{ date:$("acDate").value, description:$("acDesc").value, severity:$("acSev").value, lostDays:Number($("acDays").value)||0 }); toast("Accident déclaré ✓"); VIEWS.accidents(); }catch(e){ toast(e.message,true);} }
+async function authorityView(preset, title){ need(); if(!S.companyId) return panel(title,"<p class='muted'>Crée d'abord une société.</p>");
+  const opts=["INSPECTION_TRAVAIL","URSSAF","CARSAT","DREETS","MEDECINE_TRAVAIL","AUTRE"];
+  panel(title, `<p class="desc">Enregistre une interaction (contrôle, demande, déclaration…). Une date limite crée une échéance de veille.</p>
+    <div class="row">${F([{id:"auAuthority",label:"Autorité",type:"select",options:opts},{id:"auType",label:"Type",type:"select",options:["CONTROLE","DEMANDE","DECLARATION","MISE_EN_DEMEURE","COURRIER"]}])}</div>
+    <div class="row">${F([{id:"auDate",label:"Date",val:new Date().toISOString().slice(0,10)},{id:"auDue",label:"Échéance de réponse (option.)",val:""},{id:"auRef",label:"Référence",val:""}])}</div>
+    <button class="act" onclick="doCreateInteraction()">Enregistrer</button><div id="ilist"></div>`);
+  const sel=document.getElementById("auAuthority"); if(sel) sel.value=preset;
+  try{ const l=await api(`/companies/${S.companyId}/authority/interactions`); document.getElementById("ilist").innerHTML=`<h2 style="margin-top:16px">Interactions (${l.length})</h2>`+table(l.map(i=>({ autorité:i.authority, type:i.type, date:i.date, échéance:i.dueDate||"—", statut:i.status }))); }catch(e){ toast(e.message,true);} }
+async function doCreateInteraction(){ try{ const body={ authority:$("auAuthority").value, type:$("auType").value, date:$("auDate").value, reference:$("auRef").value||undefined, dueDate:$("auDue").value||undefined }; const d=await api(`/companies/${S.companyId}/authority/interactions`,"POST",body); S.interactionId=d.id; toast("Interaction enregistrée ✓"); authorityView($("auAuthority").value, "Interactions"); }catch(e){ toast(e.message,true);} }
+async function doOpenNegotiation(){ try{ const d=await api(`/companies/${S.companyId}/negotiations`,"POST",{ year:Number($("naoYear").value), theme:$("naoTheme").value, startDate:$("naoStart").value||undefined }); S.negotiationId=d.id; toast("Négociation ouverte ✓"); VIEWS.nao(); }catch(e){ toast(e.message,true);} }
+async function doSetNegotiationStatus(){ try{ if(!S.negotiationId) throw new Error("Ouvre d'abord une négociation"); await api(`/negotiations/${S.negotiationId}/status`,"POST",{ status:$("naoStatus").value }); toast("Statut mis à jour ✓"); VIEWS.nao(); }catch(e){ toast(e.message,true);} }
+async function doAddMandate(){ try{ if(!S.employmentId) throw new Error("Fais d'abord une embauche"); await api(`/companies/${S.companyId}/cse/mandates`,"POST",{employmentId:S.employmentId,role:$("cseRole").value,startDate:$("cseStart").value}); toast("Mandat ajouté ✓"); VIEWS.cse(); }catch(e){ toast(e.message,true);} }
+async function doPlanMeeting(){ try{ const agenda=$("mtAgenda").value.split(",").map(s=>s.trim()).filter(Boolean); const d=await api(`/companies/${S.companyId}/cse/meetings`,"POST",{date:$("mtDate").value,type:$("mtType").value,agenda}); S.meetingId=d.id; toast("Réunion planifiée ✓"); VIEWS.meetings(); }catch(e){ toast(e.message,true);} }
+async function doMinutes(){ try{ if(!S.meetingId) throw new Error("Planifie d'abord une réunion"); await api(`/cse/meetings/${S.meetingId}/minutes`,"POST",{minutes:$("mtMinutes").value}); toast("PV enregistré ✓"); VIEWS.meetings(); }catch(e){ toast(e.message,true);} }
+
+buildNav();
+VIEWS.dashboard=VIEWS.dashboard; // noop
+panel("Bienvenue", `<p class="desc">Suite RH Rhéos — connecte-toi (Admin/RH/DG en haut à droite), puis déroule les 9 blocs à gauche.</p>
+  <div class="banner">Parcours conseillé : <b>Entreprise & Référentiel → Créer une société</b>, puis <b>Ajouter un établissement</b>, puis <b>Gestion administrative → Éditer une embauche</b>, puis <b>Signer le contrat</b> (rôle DG).</div>`);
+</script>
+</body>
+</html>
