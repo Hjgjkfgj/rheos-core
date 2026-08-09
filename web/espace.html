@@ -115,7 +115,20 @@
       <h2>🙋 Mes informations</h2>
       <div id="profile"></div>
       <p class="muted" style="margin-top:10px">Vos données sont en lecture seule. Une modification passe par une <b>demande de correction</b> validée par les RH.</p>
-      <button class="ghost" id="changeReqBtn">Demander une correction</button>
+      <button class="ghost" id="changeReqBtn">Demander un changement d'adresse</button>
+      <form id="addrForm" class="hidden" style="margin-top:10px" aria-label="Demande de changement d'adresse">
+        <label style="font-size:13px" for="cr_line1">Adresse</label>
+        <input id="cr_line1" required placeholder="10 rue Neuve" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;margin:4px 0 8px;font-size:15px" />
+        <div class="row" style="gap:8px">
+          <input id="cr_cp" required inputmode="numeric" placeholder="13002" aria-label="Code postal" style="flex:0 0 40%;padding:11px;border:1px solid var(--line);border-radius:10px;font-size:15px" />
+          <input id="cr_city" required placeholder="Marseille" aria-label="Ville" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;font-size:15px" />
+        </div>
+        <button type="submit">Envoyer ma demande</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>📨 Mes demandes de changement</h2>
+      <div id="changeRequests"></div>
     </div>
   </section>
 
@@ -232,7 +245,7 @@ async function loadAll(){
   $("profile").innerHTML =
     `<div class="item"><span>Nom</span><b>${esc(me.person.firstName)} ${esc(me.person.lastName)}</b></div>
      <div class="item"><span>Établissement</span><b>Marseille</b></div>`;
-  await Promise.all([loadLeaves(), loadPlanning(), loadDocs()]);
+  await Promise.all([loadLeaves(), loadPlanning(), loadDocs(), loadChangeRequests()]);
 }
 
 async function loadLeaves(){
@@ -279,7 +292,22 @@ $("clockBtn").addEventListener("click", async () => {
   catch(e){ alert("Pointage : " + e.message); }
 });
 $("toDocsBtn").addEventListener("click", () => selectTab("docs"));
-$("changeReqBtn").addEventListener("click", () => alert("Votre demande de correction sera transmise aux RH pour validation (workflow REQUEST → VALIDATION → mise à jour)."));
+$("changeReqBtn").addEventListener("click", () => $("addrForm").classList.toggle("hidden"));
+$("addrForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const value = { line1: $("cr_line1").value, postalCode: $("cr_cp").value, city: $("cr_city").value };
+  try {
+    await api("/me/change-requests", "POST", { field: "address", value });
+    $("addrForm").reset(); $("addrForm").classList.add("hidden");
+    await loadChangeRequests();
+  } catch (err) { alert("Demande : " + err.message); }
+});
+async function loadChangeRequests() {
+  const crs = await api("/me/change-requests");
+  $("changeRequests").innerHTML = crs.length ? crs.map((c) =>
+    `<div class="item"><span>${esc(c.field === "address" ? "Changement d'adresse" : c.field)}<div class="meta">${esc((c.requestedValue && c.requestedValue.city) || "")}</div></span>${badge(c.status)}</div>`).join("")
+    : empty("📨", "Aucune demande en cours.");
+}
 
 // --- Service worker (PWA installable, cache lecture seule) ---
 if ("serviceWorker" in navigator) {

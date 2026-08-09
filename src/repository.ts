@@ -7,6 +7,7 @@ import {
   Shift, TimeEntry, ContractAmendment, Deadline, CseMandate, CseMeeting, AuthorityInteraction,
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
+  Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
 } from "./types.js";
 
 export interface Repository {
@@ -131,6 +132,25 @@ export interface Repository {
   // Journal IA (append-only)
   appendAiAudit(e: AiAuditLog): Promise<void>;
   listAiAuditByTenant(tenantId: string): Promise<AiAuditLog[]>;
+  // D2b — Coordonnées historisées (SCD-2), identifiants sensibles, audit, change requests
+  createAddress(r: Address): Promise<Address>;
+  getAddress(tenantId: string, id: string): Promise<Address | undefined>;
+  updateAddress(tenantId: string, id: string, patch: Partial<Address>): Promise<Address | undefined>;
+  listAddressesByPerson(tenantId: string, personId: string): Promise<Address[]>;
+  createBankAccount(r: BankAccount): Promise<BankAccount>;
+  getBankAccount(tenantId: string, id: string): Promise<BankAccount | undefined>;
+  updateBankAccount(tenantId: string, id: string, patch: Partial<BankAccount>): Promise<BankAccount | undefined>;
+  listBankAccountsByPerson(tenantId: string, personId: string): Promise<BankAccount[]>;
+  createSensitiveId(r: SensitiveIdentifier): Promise<SensitiveIdentifier>;
+  getSensitiveId(tenantId: string, id: string): Promise<SensitiveIdentifier | undefined>;
+  listSensitiveIdsByPerson(tenantId: string, personId: string): Promise<SensitiveIdentifier[]>;
+  appendAudit(e: AuditLog): Promise<void>;
+  listAuditByTenant(tenantId: string): Promise<AuditLog[]>;
+  createChangeRequest(r: ChangeRequest): Promise<ChangeRequest>;
+  getChangeRequest(tenantId: string, id: string): Promise<ChangeRequest | undefined>;
+  updateChangeRequest(tenantId: string, id: string, patch: Partial<ChangeRequest>): Promise<ChangeRequest | undefined>;
+  listChangeRequestsByPerson(tenantId: string, personId: string): Promise<ChangeRequest[]>;
+  listChangeRequestsByTenant(tenantId: string): Promise<ChangeRequest[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +189,11 @@ export class MemoryRepository implements Repository {
   workforceSnapshots: WorkforceSnapshot[] = [];
   leaveLedger: LeaveLedgerEntry[] = [];
   aiAudit: AiAuditLog[] = [];
+  addresses: Address[] = [];
+  bankAccounts: BankAccount[] = [];
+  sensitiveIds: SensitiveIdentifier[] = [];
+  auditLog: AuditLog[] = [];
+  changeRequests: ChangeRequest[] = [];
 
   private t<T extends { tenantId: string }>(a: T[], tenantId: string) { return a.filter((x) => x.tenantId === tenantId); }
   private id<T extends { id: string; tenantId: string }>(a: T[], tenantId: string, id: string) { return a.find((x) => x.id === id && x.tenantId === tenantId); }
@@ -293,6 +318,25 @@ export class MemoryRepository implements Repository {
   async listDomainEventsByTenant(t: string) { return this.t(this.domainEvents, t); }
   async appendAiAudit(e: AiAuditLog) { this.aiAudit.push(e); }
   async listAiAuditByTenant(t: string) { return this.t(this.aiAudit, t); }
+
+  async createAddress(r: Address) { this.addresses.push(r); return r; }
+  async getAddress(t: string, id: string) { return this.id(this.addresses, t, id); }
+  async updateAddress(t: string, id: string, patch: Partial<Address>) { const a = this.id(this.addresses, t, id); if (a) Object.assign(a, patch); return a; }
+  async listAddressesByPerson(t: string, personId: string) { return this.t(this.addresses, t).filter((a) => a.personId === personId); }
+  async createBankAccount(r: BankAccount) { this.bankAccounts.push(r); return r; }
+  async getBankAccount(t: string, id: string) { return this.id(this.bankAccounts, t, id); }
+  async updateBankAccount(t: string, id: string, patch: Partial<BankAccount>) { const b = this.id(this.bankAccounts, t, id); if (b) Object.assign(b, patch); return b; }
+  async listBankAccountsByPerson(t: string, personId: string) { return this.t(this.bankAccounts, t).filter((b) => b.personId === personId); }
+  async createSensitiveId(r: SensitiveIdentifier) { this.sensitiveIds.push(r); return r; }
+  async getSensitiveId(t: string, id: string) { return this.id(this.sensitiveIds, t, id); }
+  async listSensitiveIdsByPerson(t: string, personId: string) { return this.t(this.sensitiveIds, t).filter((s) => s.personId === personId); }
+  async appendAudit(e: AuditLog) { this.auditLog.push(e); }
+  async listAuditByTenant(t: string) { return this.auditLog.filter((a) => a.tenantId === t); }
+  async createChangeRequest(r: ChangeRequest) { this.changeRequests.push(r); return r; }
+  async getChangeRequest(t: string, id: string) { return this.id(this.changeRequests, t, id); }
+  async updateChangeRequest(t: string, id: string, patch: Partial<ChangeRequest>) { const c = this.id(this.changeRequests, t, id); if (c) Object.assign(c, patch); return c; }
+  async listChangeRequestsByPerson(t: string, personId: string) { return this.t(this.changeRequests, t).filter((c) => c.personId === personId); }
+  async listChangeRequestsByTenant(t: string) { return this.t(this.changeRequests, t); }
 
   // --- Sauvegarde / restauration (Lot 8) ---------------------------------
   // Les collections métier sont les propriétés tableau de ce dépôt. dump() en

@@ -14,6 +14,20 @@ export interface OperatingSite { id: string; tenantId: string; establishmentId: 
 export interface Position { id: string; tenantId: string; legalEntityId: string; title: string; classification?: string; coefficient?: number; }
 
 export interface Person { id: string; tenantId: string; lastName: string; firstName: string; usageName?: string; birthDate?: string; personalEmail?: string; }
+
+// D2b — Coordonnées historisées (SCD-2) & identifiants sensibles (chiffrés).
+export type AddressType = "HOME" | "POSTAL" | "OTHER";
+export interface Address { id: string; tenantId: string; personId: string; type: AddressType; line1: string; line2?: string; postalCode: string; city: string; country: string; validFrom: string; validTo?: string; }
+// Statuts IBAN (schema.prisma) : FURNISHED = « fournie/PROVIDED » (consigne Lot 11).
+export type BankAccountStatus = "FURNISHED" | "TO_VERIFY" | "VALIDATED" | "REJECTED" | "REPLACED";
+export interface BankAccount { id: string; tenantId: string; personId: string; ibanLast4: string; ibanEnc: string; bic?: string; holderName?: string; status: BankAccountStatus; validFrom: string; validTo?: string; }
+export type SensitiveIdType = "NIR" | "ID_CARD" | "PASSPORT" | "RESIDENCE_PERMIT" | "DRIVING_LICENSE";
+export interface SensitiveIdentifier { id: string; tenantId: string; personId: string; type: SensitiveIdType; valueEnc: string; validFrom: string; validTo?: string; }
+// Journal d'audit métier (qui/quand/quoi/avant/après/contexte).
+export interface AuditLog { id: string; tenantId?: string; userId?: string; action: string; entityType: string; entityId: string; before?: any; after?: any; reason?: string; ip?: string; at: string; }
+// Change request self-service : le collaborateur ne modifie jamais directement.
+export type ChangeRequestStatus = "REQUESTED" | "APPROVED" | "REFUSED";
+export interface ChangeRequest { id: string; tenantId: string; personId: string; employmentId?: string; field: string; requestedValue: any; status: ChangeRequestStatus; reason?: string; decidedBy?: string; createdAt: string; }
 export interface Employment { id: string; tenantId: string; personId: string; legalEntityId: string; administrativeEstablishmentId?: string; startDate: string; endDate?: string; status: EmploymentStatus; }
 export interface Contract { id: string; tenantId: string; employmentId: string; type: ContractType; startDate: string; endDate?: string; workingTime?: number; workingTimeUnit: WorkingTimeUnit; classification?: string; coefficient?: number; grossMonthly?: number; status: ContractStatus; }
 export interface Assignment { id: string; tenantId: string; employmentId: string; operatingSiteId?: string; orgUnitId?: string; positionId?: string; managerEmploymentId?: string; allocationPct?: number; validFrom: string; validTo?: string; }

@@ -14,6 +14,7 @@ import {
   Shift, TimeEntry, ContractAmendment, Deadline, CseMandate, CseMeeting, AuthorityInteraction,
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
+  Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
 } from "./types.js";
 
 // --- ÉCRITURE : domaine (string) → Prisma (DateTime) -------------------------
@@ -190,4 +191,24 @@ export class PrismaRepository implements Repository {
   listDomainEventsByTenant(t: string) { return this.tx(t, (px) => px.domainEvent.findMany({ where: { tenantId: t }, orderBy: { occurredAt: "desc" }, take: 200 })) as any; }
   async appendAiAudit(e: AiAuditLog) { await this.tx(e.tenantId, (px) => px.aiAuditLog.create({ data: norm(e) })); }
   listAiAuditByTenant(t: string) { return this.tx(t, (px) => px.aiAuditLog.findMany({ where: { tenantId: t }, orderBy: { at: "desc" }, take: 200 })) as any; }
+
+  // D2b
+  createAddress(r: Address) { return this.tx(r.tenantId, (px) => px.address.create({ data: norm(r) })); }
+  getAddress(t: string, id: string) { return this.tx(t, (px) => px.address.findFirst({ where: { id, tenantId: t } })) as any; }
+  updateAddress(t: string, id: string, patch: Partial<Address>) { return this.tx(t, (px) => px.address.update({ where: { id }, data: norm(patch) })) as any; }
+  listAddressesByPerson(t: string, personId: string) { return this.tx(t, (px) => px.address.findMany({ where: { tenantId: t, personId } })) as any; }
+  createBankAccount(r: BankAccount) { return this.tx(r.tenantId, (px) => px.bankAccount.create({ data: norm(r) })); }
+  getBankAccount(t: string, id: string) { return this.tx(t, (px) => px.bankAccount.findFirst({ where: { id, tenantId: t } })) as any; }
+  updateBankAccount(t: string, id: string, patch: Partial<BankAccount>) { return this.tx(t, (px) => px.bankAccount.update({ where: { id }, data: norm(patch) })) as any; }
+  listBankAccountsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.bankAccount.findMany({ where: { tenantId: t, personId } })) as any; }
+  createSensitiveId(r: SensitiveIdentifier) { return this.tx(r.tenantId, (px) => px.sensitiveIdentifier.create({ data: norm(r) })); }
+  getSensitiveId(t: string, id: string) { return this.tx(t, (px) => px.sensitiveIdentifier.findFirst({ where: { id, tenantId: t } })) as any; }
+  listSensitiveIdsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.sensitiveIdentifier.findMany({ where: { tenantId: t, personId } })) as any; }
+  async appendAudit(e: AuditLog) { await this.tx(e.tenantId ?? "", (px) => px.auditLog.create({ data: norm(e) })); }
+  listAuditByTenant(t: string) { return this.tx(t, (px) => px.auditLog.findMany({ where: { tenantId: t }, orderBy: { at: "desc" }, take: 200 })) as any; }
+  createChangeRequest(r: ChangeRequest) { return this.tx(r.tenantId, (px) => px.changeRequest.create({ data: norm(r) })); }
+  getChangeRequest(t: string, id: string) { return this.tx(t, (px) => px.changeRequest.findFirst({ where: { id, tenantId: t } })) as any; }
+  updateChangeRequest(t: string, id: string, patch: Partial<ChangeRequest>) { return this.tx(t, (px) => px.changeRequest.update({ where: { id }, data: norm(patch) })) as any; }
+  listChangeRequestsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.changeRequest.findMany({ where: { tenantId: t, personId } })) as any; }
+  listChangeRequestsByTenant(t: string) { return this.tx(t, (px) => px.changeRequest.findMany({ where: { tenantId: t } })) as any; }
 }

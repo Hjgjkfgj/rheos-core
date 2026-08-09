@@ -1008,3 +1008,27 @@ model TimeEntry {
 
   @@index([tenantId, employmentId, date])
 }
+
+// D2b (Lot 11) — Demande de changement self-service. Le collaborateur ne modifie
+// jamais directement : REQUEST → VALIDATION RH → UPDATE. À répercuter dans les specs.
+enum ChangeRequestStatus {
+  REQUESTED
+  APPROVED
+  REFUSED
+}
+
+model ChangeRequest {
+  id             String              @id @default(uuid())
+  tenantId       String
+  personId       String
+  employmentId   String?
+  field          String
+  requestedValue Json
+  status         ChangeRequestStatus @default(REQUESTED)
+  reason         String?
+  decidedBy      String?
+  createdAt      DateTime            @default(now())
+
+  @@index([tenantId, personId])
+  @@index([tenantId, status])
+}

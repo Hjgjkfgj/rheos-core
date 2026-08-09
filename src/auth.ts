@@ -29,6 +29,7 @@ const SPEC_D1_D2: Record<string, string[]> = {
     "contract.read", "contract.create", "contract.validate",
     "amendment.create", "assignment.write", "document.read", "document.write",
     "document.delete", "document.legal_hold",
+    "person.sensitive.write", "bank_account.write", "change_request.validate",
     "registry.read", "registry.export", "employee360.read", "obligation.manage",
   ],
   HrOfficer: [
@@ -63,7 +64,7 @@ const EXTRA_CROSS_DOMAIN: Record<string, string[]> = {
   HrOfficer: ["leave.request", "notifications.read", "planning.write", "planning.read", "time.record"],
   Signatory: ["document.sign", "notifications.read", "social.read"],
   Manager: ["leave.approve", "notifications.read", "planning.write", "planning.read", "time.record", "social.read"],
-  Employee: ["leave.request", "time.record", "planning.read"],
+  Employee: ["leave.request", "time.record", "planning.read", "change_request.submit"],
   PayrollOfficer: ["payroll.prepare", "finance.read"],
 };
 

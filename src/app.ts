@@ -25,6 +25,7 @@ import { conventionGrid, resolveValeurPoint, minimumForCoef } from "./domain/con
 import { analyzeDocument } from "./domain/extraction.js";
 import { assertCan } from "./auth.js";
 import { AssistantService } from "./services-assistant.js";
+import { SensitiveService } from "./services-sensitive.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -45,6 +46,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   const healthSvc = new HealthService(repo, bus);
   const careerSvc = new CareerService(repo, bus);
   const financeSvc = new FinanceService(repo, bus);
+  const sensitiveSvc = new SensitiveService(repo, bus);
   // Archivage automatique du coffre au départ du collaborateur (le coffre n'est
   // jamais détruit ; le collaborateur garde l'accès à ses documents).
   bus.subscribe((e) => {
@@ -260,6 +262,26 @@ export function build(repo: Repository = new MemoryRepository()) {
   app.post("/api/v1/contracts/:contractId/amendments", async (req, reply) => { reply.code(201); return svc.createAmendment(ctx(req), (req.params as any).contractId, req.body as any); });
   app.get("/api/v1/contracts/:contractId/amendments", async (req) => svc.listAmendments(ctx(req), (req.params as any).contractId));
   app.post("/api/v1/amendments/:id/sign", async (req) => svc.signAmendment(ctx(req), (req.params as any).id));
+
+  // D2b — Coordonnées bancaires (masquées par défaut ; IBAN complet audité)
+  app.post("/api/v1/persons/:personId/bank-accounts", async (req, reply) => { reply.code(201); return sensitiveSvc.registerBankAccount(ctx(req), (req.params as any).personId, req.body as any); });
+  app.get("/api/v1/persons/:personId/bank-accounts", async (req) => sensitiveSvc.listBankAccounts(ctx(req), (req.params as any).personId));
+  app.get("/api/v1/bank-accounts/:id/iban", async (req) => sensitiveSvc.readIban(ctx(req), (req.params as any).id));
+  app.post("/api/v1/bank-accounts/:id/status", async (req) => sensitiveSvc.setBankStatus(ctx(req), (req.params as any).id, (req.body as any)?.status));
+  // D2b — Identifiants sensibles (NIR chiffré ; lecture auditée)
+  app.post("/api/v1/persons/:personId/sensitive-ids", async (req, reply) => { reply.code(201); return sensitiveSvc.registerSensitiveId(ctx(req), (req.params as any).personId, req.body as any); });
+  app.get("/api/v1/sensitive-ids/:id/value", async (req) => sensitiveSvc.readSensitiveValue(ctx(req), (req.params as any).id));
+  // D2b — Adresses historisées (SCD-2)
+  app.post("/api/v1/persons/:personId/addresses", async (req, reply) => { reply.code(201); return sensitiveSvc.registerAddress(ctx(req), (req.params as any).personId, req.body as any); });
+  app.get("/api/v1/persons/:personId/addresses", async (req) => sensitiveSvc.listAddresses(ctx(req), (req.params as any).personId));
+  // D2b — Demandes de changement self-service
+  app.post("/api/v1/me/change-requests", async (req, reply) => { reply.code(201); return sensitiveSvc.submitChangeRequest(ctx(req), req.body as any); });
+  app.get("/api/v1/me/change-requests", async (req) => sensitiveSvc.listMyChangeRequests(ctx(req)));
+  app.get("/api/v1/change-requests/pending", async (req) => sensitiveSvc.listPendingChangeRequests(ctx(req)));
+  app.post("/api/v1/change-requests/:id/approve", async (req) => sensitiveSvc.decideChangeRequest(ctx(req), (req.params as any).id, true));
+  app.post("/api/v1/change-requests/:id/refuse", async (req) => sensitiveSvc.decideChangeRequest(ctx(req), (req.params as any).id, false, (req.body as any)?.reason));
+  // Journal d'audit (lecture restreinte)
+  app.get("/api/v1/audit", async (req) => sensitiveSvc.listAudit(ctx(req)));
 
   // Organigramme
   app.get("/api/v1/companies/:companyId/org-chart", async (req) => orgSvc.chart(ctx(req), (req.params as any).companyId));
