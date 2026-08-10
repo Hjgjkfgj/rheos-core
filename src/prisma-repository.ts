@@ -189,6 +189,7 @@ export class PrismaRepository implements Repository {
   // Événements
   async appendDomainEvent(e: DomainEvent) { await this.tx(e.tenantId, (px) => px.domainEvent.create({ data: norm(e) })); }
   listDomainEventsByTenant(t: string) { return this.tx(t, (px) => px.domainEvent.findMany({ where: { tenantId: t }, orderBy: { occurredAt: "desc" }, take: 200 })) as any; }
+  async ping() { try { await this.prisma.$queryRawUnsafe("SELECT 1"); return true; } catch { return false; } }
   async appendAiAudit(e: AiAuditLog) { await this.tx(e.tenantId, (px) => px.aiAuditLog.create({ data: norm(e) })); }
   listAiAuditByTenant(t: string) { return this.tx(t, (px) => px.aiAuditLog.findMany({ where: { tenantId: t }, orderBy: { at: "desc" }, take: 200 })) as any; }
 

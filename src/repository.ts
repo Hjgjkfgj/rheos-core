@@ -129,6 +129,8 @@ export interface Repository {
   // Événements
   appendDomainEvent(e: DomainEvent): Promise<void>;
   listDomainEventsByTenant(tenantId: string): Promise<DomainEvent[]>;
+  // Supervision : liveness de la base (SELECT 1). Memory → toujours vrai.
+  ping(): Promise<boolean>;
   // Journal IA (append-only)
   appendAiAudit(e: AiAuditLog): Promise<void>;
   listAiAuditByTenant(tenantId: string): Promise<AiAuditLog[]>;
@@ -316,6 +318,7 @@ export class MemoryRepository implements Repository {
 
   async appendDomainEvent(e: DomainEvent) { this.domainEvents.push(e); }
   async listDomainEventsByTenant(t: string) { return this.t(this.domainEvents, t); }
+  async ping() { return true; }
   async appendAiAudit(e: AiAuditLog) { this.aiAudit.push(e); }
   async listAiAuditByTenant(t: string) { return this.t(this.aiAudit, t); }
 

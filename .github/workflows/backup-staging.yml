@@ -1,0 +1,27 @@
+name: backup-staging
+
+# Sauvegarde quotidienne chiffrée de la base staging vers Object Storage.
+# Secrets requis : DATABASE_URL_ADMIN, BACKUP_ENCRYPTION_KEY, SCW_ACCESS_KEY, SCW_SECRET_KEY.
+# Variables : BACKUP_BUCKET (rheos-backups-staging), S3_ENDPOINT (https://s3.fr-par.scw.cloud).
+on:
+  schedule:
+    - cron: "17 2 * * *"   # 02:17 UTC chaque jour
+  workflow_dispatch: {}      # déclenchement manuel possible
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Client PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Dump chiffré → bucket
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          AWS_DEFAULT_REGION: fr-par
+        run: bash scripts/backup.sh
