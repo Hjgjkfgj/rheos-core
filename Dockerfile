@@ -6,10 +6,14 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 ENV NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false
+# openssl requis par le moteur Prisma (détection de version) DÈS le build.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+# Le schéma doit être présent AVANT `npm ci` : le hook postinstall lance
+# `prisma generate` pendant l'install → il lui faut prisma/schema.prisma.
 COPY package.json package-lock.json ./
-RUN npm ci
 COPY prisma ./prisma
-RUN npx prisma generate            # client Prisma généré au build (pas au runtime)
+RUN npm ci                         # npm ci → postinstall → prisma generate (client généré au build)
 COPY tsconfig.json ./
 COPY src ./src
 COPY web ./web
