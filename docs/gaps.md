@@ -84,8 +84,28 @@ RUP (§3), eIDAS (§4), congés (§5) **restent ouvertes et à valider par un ju
 Extensions de schéma actées (enums ARCHIVED, DocumentStatus, ChangeRequest,
 AuditLog.reason, correctif UserRole) — techniques, sans portée juridique.
 
+## 10. Conformité P3 — de « hypothèse » à « draft prêt pour validation » (Lot 17)
+
+Le Lot 17 **matérialise** les hypothèses en **documents relisibles par un avocat** et en
+**mécanismes exécutables**. Ce qui change de statut :
+
+| Sujet | Avant (hypothèse) | Après Lot 17 (draft prêt à valider) |
+|---|---|---|
+| Cartographie des traitements | implicite (dans le code) | **`docs/rgpd/registre-traitements.md`** généré du modèle réel, champs ⚖️ marqués |
+| Analyse d'impact | absente | **`docs/rgpd/aipd-dossier-collaborateur.md`** pré-remplie (archi réelle + questions ⚖️) |
+| Droit d'accès (art. 15) | non outillé | **endpoint + procédure** : export PDF+JSON journalisé (`/persons/:id/access-request`) |
+| Effacement/anonymisation (art. 17) | mécanique documents seule | **commande exécutable et testée** (`npm run anonymize`) branchée sur DELETE/ANONYMIZE/ARCHIVE |
+| CGU / DPA / politique | inexistants | **drafts FR** (`docs/legal/*.md`) marqués *DRAFT — À FAIRE VALIDER PAR UN AVOCAT* |
+| Information des personnes | aucune page | page **`/confidentialite`** en ligne + mention **« aucun traceur »** |
+
+**Reste OUVERT (⚖️ juriste)** : bases légales exactes (dont NIR), durées de conservation
+précises (§1), qualification responsable/sous-traitant par module, délai de purge des
+**sauvegardes** vs droit à l'effacement, SLA et clauses de responsabilité des CGU. Ces points
+sont **listés explicitement** dans chaque document (mentions ⚖️).
+
 ---
 
 **Statut** : hypothèses de travail, **non validées juridiquement**. Aucune ne fige
 l'architecture — toutes sont des données datées modifiables sans redéploiement de code.
-**Les hypothèses §1-§5 demeurent OUVERTES** (à valider juriste).
+**Les hypothèses §1-§5 demeurent OUVERTES** (à valider juriste) ; le Lot 17 les a
+**transformées en drafts prêts pour la revue juridique** (§10).

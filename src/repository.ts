@@ -33,6 +33,7 @@ export interface Repository {
   createPerson(r: Person): Promise<Person>;
   getPerson(tenantId: string, id: string): Promise<Person | undefined>;
   findPersonDuplicates(tenantId: string, lastName: string, firstName: string, birthDate?: string): Promise<Person[]>;
+  updatePerson(tenantId: string, id: string, patch: Partial<Person>): Promise<Person | undefined>;
   createEmployment(r: Employment): Promise<Employment>;
   getEmployment(tenantId: string, id: string): Promise<Employment | undefined>;
   findActiveEmploymentByPerson(tenantId: string, personId: string): Promise<Employment | undefined>;
@@ -146,6 +147,7 @@ export interface Repository {
   listBankAccountsByPerson(tenantId: string, personId: string): Promise<BankAccount[]>;
   createSensitiveId(r: SensitiveIdentifier): Promise<SensitiveIdentifier>;
   getSensitiveId(tenantId: string, id: string): Promise<SensitiveIdentifier | undefined>;
+  updateSensitiveId(tenantId: string, id: string, patch: Partial<SensitiveIdentifier>): Promise<SensitiveIdentifier | undefined>;
   listSensitiveIdsByPerson(tenantId: string, personId: string): Promise<SensitiveIdentifier[]>;
   appendAudit(e: AuditLog): Promise<void>;
   listAuditByTenant(tenantId: string): Promise<AuditLog[]>;
@@ -227,6 +229,7 @@ export class MemoryRepository implements Repository {
       (!birthDate || p.birthDate === birthDate));
   }
   async listPersonsByTenant(t: string) { return this.t(this.persons, t); }
+  async updatePerson(t: string, id: string, patch: Partial<Person>) { const p = this.id(this.persons, t, id); if (p) Object.assign(p, patch); return p; }
   async createEmployment(r: Employment) { this.employments.push(r); return r; }
   async getEmployment(t: string, id: string) { return this.id(this.employments, t, id); }
   async findActiveEmploymentByPerson(t: string, personId: string) { return this.t(this.employments, t).find((e) => e.personId === personId && e.status !== "ENDED") ?? this.t(this.employments, t).find((e) => e.personId === personId); }
@@ -334,6 +337,7 @@ export class MemoryRepository implements Repository {
   async listBankAccountsByPerson(t: string, personId: string) { return this.t(this.bankAccounts, t).filter((b) => b.personId === personId); }
   async createSensitiveId(r: SensitiveIdentifier) { this.sensitiveIds.push(r); return r; }
   async getSensitiveId(t: string, id: string) { return this.id(this.sensitiveIds, t, id); }
+  async updateSensitiveId(t: string, id: string, patch: Partial<SensitiveIdentifier>) { const s = this.id(this.sensitiveIds, t, id); if (s) Object.assign(s, patch); return s; }
   async listSensitiveIdsByPerson(t: string, personId: string) { return this.t(this.sensitiveIds, t).filter((s) => s.personId === personId); }
   async appendAudit(e: AuditLog) { this.auditLog.push(e); }
   async listAuditByTenant(t: string) { return this.auditLog.filter((a) => a.tenantId === t); }
