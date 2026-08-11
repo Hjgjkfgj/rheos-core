@@ -4,7 +4,7 @@
 // contourne), l'isolation TOMBE ; (3) le rôle applicatif n'est pas superutilisateur ;
 // (4) l'app refuse de démarrer en prod avec un superutilisateur.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { isSuperuser, assertNonSuperuserInProd } from "../src/db-guard.js";
+import { isSuperuser, assertNonSuperuserInProd, roleAttrs } from "../src/db-guard.js";
 
 const RUN = process.env.STORE === "prisma";
 const SIREN = "918273645"; // unique à ce test
@@ -59,6 +59,14 @@ describe.skipIf(!RUN)("RLS en base réelle (STORE=prisma)", () => {
   it("le rôle applicatif n'est PAS superutilisateur ; l'admin l'est", async () => {
     expect(await isSuperuser(app)).toBe(false);
     expect(await isSuperuser(adm)).toBe(true);
+  });
+
+  it("rheos_app ne CONTOURNE pas la RLS (NOBYPASSRLS) et ne peut PAS faire de DDL", async () => {
+    const a = await roleAttrs(app);
+    expect(a.superuser).toBe(false);
+    expect(a.bypassRls).toBe(false); // échoue si le rôle bypasse la RLS
+    // DDL interdit (aucun CREATE sur le schéma) → l'app ne peut pas migrer.
+    await expect(app.$executeRawUnsafe(`CREATE TABLE ddl_forbidden_probe (x int)`)).rejects.toThrow();
   });
 
   it("l'app refuse de démarrer en PROD avec un superutilisateur", async () => {

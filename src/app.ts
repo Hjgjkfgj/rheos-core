@@ -65,8 +65,20 @@ export function build(repo: Repository = new MemoryRepository()) {
   // Durcissement : en-têtes de sécurité sur toutes les réponses + rate limiting.
   const authLimiter = new RateLimiter(60_000, 20);
   const apiLimiter = new RateLimiter(60_000, 300);
+  const isProd = process.env.NODE_ENV === "production";
   app.addHook("onRequest", async (req, reply) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
+    // Derrière la terminaison TLS de Scaleway : le container reçoit du HTTP avec
+    // x-forwarded-proto. En prod : HSTS + redirection HTTPS (hors /health, pour la sonde).
+    if (isProd) {
+      reply.header("strict-transport-security", "max-age=63072000; includeSubDomains; preload");
+      const proto = (req.headers["x-forwarded-proto"] as string || "").split(",")[0].trim();
+      if (proto === "http" && !req.url.startsWith("/health")) {
+        const host = req.headers["host"];
+        reply.code(308).header("location", `https://${host}${req.url}`).send();
+        return;
+      }
+    }
     if (!req.url.startsWith("/api/v1")) return;
     const limiter = req.url.startsWith("/api/v1/auth") ? authLimiter : apiLimiter;
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
@@ -121,7 +133,11 @@ export function build(repo: Repository = new MemoryRepository()) {
 
   const ctx = (req: any): Ctx => req.ctx;
 
-  app.get("/health", async () => ({ status: "ok" }));
+  app.get("/health", async (_req, reply) => {
+    const db = await repo.ping().catch(() => false);
+    if (!db) reply.code(503);
+    return { status: db ? "ok" : "degraded", store: process.env.STORE ?? "memory", db, ts: new Date().toISOString() };
+  });
 
   // Console de contrôle (front de démo, même origine → pas de CORS)
   const INDEX = new URL("../web/index.html", import.meta.url);

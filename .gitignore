@@ -28,3 +28,7 @@ prisma/generated/
 .DS_Store
 coverage/
 *.tmp
+
+# Sauvegardes chiffrées locales (ne jamais committer)
+*.sql.gz.enc
+*.sql.gz

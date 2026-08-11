@@ -7,6 +7,13 @@ import { build } from "../src/app.js";
 import { getRepository } from "../src/store-selector.js";
 import { signToken } from "../src/jwt.js";
 
+// Fixe le secret JWT du seed AVANT toute signature. Les jetons ne servent qu'à appeler
+// l'app en interne (app.inject). Sans ça, les jetons sont signés avec le repli
+// "dev-secret-change-me", puis PrismaClient charge .env et change process.env.JWT_SECRET
+// → la vérification échoue (401 signature invalide). On le verrouille ici (dotenv ne
+// surcharge pas une variable déjà définie).
+process.env.JWT_SECRET = process.env.JWT_SECRET ?? "seed-demo-secret";
+
 const TENANT = "DEMO";
 const admin = { authorization: `Bearer ${signToken({ sub: "admin", tenantId: TENANT, roles: ["TenantAdmin"], scopes: [{ type: "TENANT" }] })}` };
 const hr = { authorization: `Bearer ${signToken({ sub: "rh", tenantId: TENANT, roles: ["HrManager"] })}` };
@@ -18,7 +25,11 @@ const CONTRACTS = ["CDI", "CDI", "CDI", "CDD", "APPRENTICESHIP"]; // majorité C
 async function main() {
   const repo = await getRepository();
   const app = build(repo);
-  const post = async (url: string, payload: any, headers = admin) => (await app.inject({ method: "POST", url, headers, payload })).json();
+  const post = async (url: string, payload: any, headers = admin) => {
+    const res = await app.inject({ method: "POST", url, headers, payload });
+    if (res.statusCode >= 300) throw new Error(`POST ${url} → HTTP ${res.statusCode} : ${res.body}`);
+    return res.json();
+  };
 
   let seq = 0;
   const person = () => ({ lastName: LAST[seq % LAST.length], firstName: FIRST[(seq++) % FIRST.length] });
@@ -49,7 +60,8 @@ async function main() {
 
   for (const r of results) {
     const obs = (await app.inject({ method: "GET", url: `/api/v1/companies/${r.id}/obligations`, headers: hr })).json();
-    console.log(`✓ ${r.name} — ${r.headcount} collaborateur(s), ${r.establishments} établissement(s), ${obs.length} obligation(s) déclenchée(s)`);
+    const obsCount = Array.isArray(obs) ? obs.length : (obs.items?.length ?? "?");
+    console.log(`✓ ${r.name} — ${r.headcount} collaborateur(s), ${r.establishments} établissement(s), ${obsCount} obligation(s) déclenchée(s)`);
   }
   console.log(`\nSeed « ${TENANT} » terminé (STORE=${process.env.STORE ?? "memory"}).`);
 }

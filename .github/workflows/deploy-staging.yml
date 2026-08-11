@@ -1,0 +1,105 @@
+name: deploy-staging
+
+# À chaque merge sur main : tests → build image → push registry Scaleway →
+# migrations (URL admin) → déploiement du Serverless Container → smoke test /health.
+# Secrets requis (GitHub) : SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID,
+# SCW_DEFAULT_ORGANIZATION_ID, DATABASE_URL_ADMIN, SCW_CONTAINER_ID.
+# Variables (repo Variables) : SCW_REGISTRY (ex. rg.fr-par.scw.cloud/rheos-staging),
+# STAGING_URL (https://staging.rheos-corp.fr).
+on:
+  push:
+    branches: [ main ]
+
+env:
+  SCW_REGION: fr-par
+  IMAGE: ${{ vars.SCW_REGISTRY }}/rheos-core
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run lint:vocab
+      - run: STORE=memory npm test
+
+  build-push:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - name: Login Scaleway Container Registry
+        run: echo "${{ secrets.SCW_SECRET_KEY }}" | docker login "${{ vars.SCW_REGISTRY }}" -u nologin --password-stdin
+      - name: Build & push
+        run: |
+          docker build -t "$IMAGE:${{ steps.meta.outputs.tag }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ steps.meta.outputs.tag }}"
+          docker push "$IMAGE:latest"
+
+  migrate:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Client psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      # Le schéma et la RLS s'appliquent avec l'utilisateur ADMIN (DDL autorisé).
+      - name: Schéma (prisma db push, admin)
+        run: DATABASE_URL="${{ secrets.DATABASE_URL_ADMIN }}" npx prisma db push --skip-generate
+      - name: RLS + privilèges minimaux rheos_app (admin)
+        env:
+          ADMIN_URL: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: |
+          # DATABASE_URL_ADMIN doit finir par ?sslmode=require (TLS obligatoire côté
+          # Scaleway) et NE PAS contenir de paramètre ?schema= (spécifique Prisma).
+          # libpq accepte sslmode dans l'URI → on passe l'URL telle quelle à psql.
+          for f in prisma/migrations/*/rls.sql; do
+            [ -f "$f" ] && psql "$ADMIN_URL" -v ON_ERROR_STOP=0 -f "$f" || true
+          done
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -f prisma/staging/rheos-app-grants.sql
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install scw CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/scaleway/scaleway-cli/master/scripts/get.sh | sh
+          scw version
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+      - name: Update image & deploy container
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          scw container container update "${{ secrets.SCW_CONTAINER_ID }}" \
+            registry-image="$IMAGE:${{ needs.build-push.outputs.tag }}" region="$SCW_REGION"
+          scw container container deploy "${{ secrets.SCW_CONTAINER_ID }}" region="$SCW_REGION"
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test /health (app + base)
+        run: |
+          for i in $(seq 1 20); do
+            body="$(curl -fsS "${{ vars.STAGING_URL }}/health" || true)"
+            echo "$body"
+            echo "$body" | grep -q '"db":true' && { echo "✓ staging en ligne, base OK"; exit 0; }
+            sleep 6
+          done
+          echo "✗ /health n'a pas confirmé db:true"; exit 1
