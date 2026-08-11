@@ -86,9 +86,11 @@ jobs:
           SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
           SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
         run: |
+          # Changer l'image via `update` déclenche AUTOMATIQUEMENT un redéploiement
+          # (le container passe en état transitoire 'updating'). Un `redeploy` explicite
+          # échouerait alors ("transient state") → on ne fait que l'update.
           scw container container update "${{ secrets.SCW_CONTAINER_ID }}" \
             image="$IMAGE:${{ needs.build-push.outputs.tag }}"
-          scw container container redeploy "${{ secrets.SCW_CONTAINER_ID }}"
 
   smoke:
     needs: deploy
