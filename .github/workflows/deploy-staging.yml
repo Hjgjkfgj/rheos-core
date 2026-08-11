@@ -69,7 +69,7 @@ jobs:
           psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -f prisma/staging/rheos-app-grants.sql
 
   deploy:
-    needs: migrate
+    needs: [build-push, migrate]   # build-push requis pour accéder à son output `tag`
     runs-on: ubuntu-latest
     steps:
       - name: Install scw CLI
