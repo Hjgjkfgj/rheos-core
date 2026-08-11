@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rhéos — Confidentialité & mentions légales</title>
+<style>
+  :root{ --navy:#11223b; --teal:#1f7a8c; --bg:#eef2f6; --ink:#1c2530; --muted:#6b7785; --line:#e2e7ee; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; }
+  header{ background:var(--navy); color:#fff; padding:22px 20px; }
+  header b{ font-size:22px; letter-spacing:.5px; } header span{ display:block; color:#8fb0cc; font-size:13px; margin-top:2px; }
+  main{ max-width:840px; margin:0 auto; padding:24px 20px 60px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin-bottom:16px; }
+  h2{ color:var(--navy); font-size:18px; margin:0 0 8px; }
+  h3{ color:var(--teal); font-size:14px; margin:16px 0 4px; text-transform:uppercase; letter-spacing:.03em; }
+  a{ color:var(--teal); }
+  table{ width:100%; border-collapse:collapse; font-size:14px; margin:6px 0; }
+  th,td{ text-align:left; padding:7px 10px; border-bottom:1px solid #eef1f4; vertical-align:top; }
+  th{ color:var(--muted); font-size:12px; text-transform:uppercase; }
+  .draft{ background:#fff7e6; border:1px solid #f0dca8; color:#7a5b00; padding:12px 14px; border-radius:8px; font-size:14px; margin-bottom:16px; }
+  .ok{ background:#eef7f6; border:1px solid #bfe3dd; color:#0d5c52; padding:12px 14px; border-radius:8px; font-size:14px; }
+  footer{ color:var(--muted); font-size:12px; text-align:center; padding:20px; }
+  .muted{ color:var(--muted); }
+</style>
+</head>
+<body>
+<header><b>Rhéos</b><span>Politique de confidentialité & mentions légales</span></header>
+<main>
+  <div class="draft"><b>DRAFT — à faire valider par un avocat / DPO.</b> Ce document décrit fidèlement l'architecture technique réelle de Rhéos ; les qualifications juridiques (bases légales, durées, responsabilités) doivent être confirmées avant mise en production.</div>
+
+  <div class="card">
+    <h2>1. Qui traite vos données&nbsp;?</h2>
+    <p>Rhéos est une suite RH SaaS multi-tenant destinée aux entreprises françaises. Dans la plupart des cas, <b>l'entreprise cliente est responsable de traitement</b> (elle décide des finalités) et <b>Rhéos agit en sous-traitant</b> (art. 28 RGPD), selon le contrat de sous-traitance (DPA) conclu avec elle. <span class="muted">(Qualification à confirmer juridiquement.)</span></p>
+    <h3>Contact</h3>
+    <p>Délégué à la protection des données (DPO)&nbsp;: <a href="mailto:dpo@rheos-corp.fr">dpo@rheos-corp.fr</a> — <span class="muted">à confirmer.</span></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Quelles données&nbsp;? Pour quoi&nbsp;?</h2>
+    <table>
+      <tr><th>Catégorie</th><th>Exemples</th><th>Finalité</th><th>Base légale (probable)</th></tr>
+      <tr><td>Identité</td><td>nom, prénom, date de naissance, email</td><td>gestion administrative RH</td><td>exécution du contrat de travail / obligation légale</td></tr>
+      <tr><td>Contrats & carrière</td><td>contrats, avenants, affectations, compétences</td><td>gestion de la relation de travail</td><td>contrat / obligation légale</td></tr>
+      <tr><td>Temps & absences</td><td>plannings, pointages, congés</td><td>suivi du temps de travail</td><td>obligation légale / intérêt légitime</td></tr>
+      <tr><td>Données sensibles</td><td>NIR, coordonnées bancaires (IBAN)</td><td>paie, déclarations sociales</td><td>obligation légale</td></tr>
+      <tr><td>Documents</td><td>contrats signés, justificatifs (coffre-fort)</td><td>conservation probante</td><td>obligation légale / intérêt légitime</td></tr>
+    </table>
+    <p class="muted">Détail exhaustif&nbsp;: registre des traitements (<code>docs/rgpd/registre-traitements.md</code>). Bases légales <b>à valider par le DPO/juriste</b>.</p>
+  </div>
+
+  <div class="card">
+    <h2>3. Qui reçoit vos données&nbsp;?</h2>
+    <p>Vos données ne sont pas vendues. Elles sont accessibles&nbsp;: à votre employeur (service RH habilité), et aux <b>sous-traitants techniques</b> strictement nécessaires&nbsp;:</p>
+    <table>
+      <tr><th>Sous-traitant</th><th>Rôle</th><th>Localisation</th></tr>
+      <tr><td><b>Scaleway SAS</b></td><td>Hébergement (application, base PostgreSQL, sauvegardes chiffrées)</td><td>France — région <b>fr-par</b> (Paris)</td></tr>
+    </table>
+    <p><b>Hébergement en France (UE)</b> — aucun transfert hors UE identifié à ce stade. <span class="muted">(À confirmer si d'autres sous-traitants sont ajoutés — voir DPA.)</span></p>
+  </div>
+
+  <div class="card">
+    <h2>4. Combien de temps&nbsp;?</h2>
+    <p>Les durées de conservation sont <b>configurées par type de document</b> (politique de rétention datée), par exemple&nbsp;: bulletins de paie 50&nbsp;ans, contrats 5&nbsp;ans après la fin de la relation. Un <b>« legal hold »</b> peut suspendre toute suppression (contentieux). En fin de rétention, les données sont <b>anonymisées</b> ou supprimées. <span class="muted">(Durées exactes à valider — voir <code>docs/gaps.md</code>.)</span></p>
+  </div>
+
+  <div class="card">
+    <h2>5. Comment vos données sont-elles protégées&nbsp;?</h2>
+    <ul>
+      <li><b>Chiffrement au repos</b> des données sensibles (NIR, IBAN) — AES-256-GCM.</li>
+      <li><b>Isolation multi-tenant</b> stricte au niveau base (Row-Level Security PostgreSQL) — une entreprise ne voit jamais les données d'une autre.</li>
+      <li><b>Chiffrement en transit</b> — HTTPS/TLS obligatoire, HSTS.</li>
+      <li><b>Journal d'audit</b> — accès et modifications sensibles tracés.</li>
+      <li><b>Sauvegardes chiffrées</b> (AES-256), restauration testée.</li>
+      <li>Rôle applicatif <b>non-superutilisateur</b> ; secrets hors code (gestionnaire de secrets).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>6. Vos droits</h2>
+    <p>Vous disposez des droits d'<b>accès</b>, de <b>rectification</b>, d'<b>effacement</b>, de <b>limitation</b>, d'<b>opposition</b> et de <b>portabilité</b>. Rhéos fournit à votre employeur un outil d'<b>export complet de vos données</b> (droit d'accès, art. 15 — format PDF et JSON) et une procédure d'<b>anonymisation</b> en fin de conservation.</p>
+    <p>Pour exercer vos droits, adressez-vous au service RH de votre employeur (responsable de traitement) ou au DPO. Vous pouvez introduire une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener">CNIL</a>.</p>
+  </div>
+
+  <div class="card">
+    <h2>7. Cookies & traceurs</h2>
+    <div class="ok"><b>Aucun traceur publicitaire ni cookie tiers.</b> L'application n'utilise ni Google Analytics, ni pixel, ni cookie de suivi. Seul un jeton de session (stocké côté navigateur) est utilisé pour vous authentifier — il est strictement nécessaire au fonctionnement et ne trace pas votre navigation. <b>Aucune bannière cookie n'est donc requise.</b></div>
+  </div>
+
+  <div class="card">
+    <h2>8. Mentions légales</h2>
+    <p><b>Éditeur</b>&nbsp;: Rhéos — <span class="muted">raison sociale, SIREN, adresse, directeur de publication à compléter.</span><br/>
+    <b>Hébergeur</b>&nbsp;: Scaleway SAS, 8 rue de la Ville l'Évêque, 75008 Paris, France — région fr-par.<br/>
+    <b>Contact</b>&nbsp;: <a href="mailto:contact@rheos-corp.fr">contact@rheos-corp.fr</a> — <span class="muted">à confirmer.</span></p>
+  </div>
+
+  <footer>Rhéos — document DRAFT, dernière mise à jour&nbsp;: 2026. À faire valider par un avocat.</footer>
+</main>
+</body>
+</html>
