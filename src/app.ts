@@ -26,6 +26,7 @@ import { analyzeDocument } from "./domain/extraction.js";
 import { assertCan } from "./auth.js";
 import { AssistantService } from "./services-assistant.js";
 import { SensitiveService } from "./services-sensitive.js";
+import { ImportService } from "./services-import.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -47,6 +48,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   const careerSvc = new CareerService(repo, bus);
   const financeSvc = new FinanceService(repo, bus);
   const sensitiveSvc = new SensitiveService(repo, bus);
+  const importSvc = new ImportService(repo, bus, svc);
   // Archivage automatique du coffre au départ du collaborateur (le coffre n'est
   // jamais détruit ; le collaborateur garde l'accès à ses documents).
   bus.subscribe((e) => {
@@ -58,7 +60,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   });
   const authService = new AuthService();
   authService.seedDemo();
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, bodyLimit: 12 * 1024 * 1024 }); // imports CSV volumineux (base64)
 
   app.decorateRequest("ctx", null);
 
@@ -168,6 +170,24 @@ export function build(repo: Repository = new MemoryRepository()) {
   // Cycle de vie d'une obligation (DETECTED→…→ARCHIVED)
   app.post("/api/v1/obligations/:id/status", async (req) => svc.advanceObligation(ctx(req), (req.params as any).id, (req.body as any)?.status));
   app.get("/api/v1/companies/:companyId/registry", async (req) => svc.getRegistry(ctx(req), (req.params as any).companyId, { establishmentId: (req.query as any).establishmentId }));
+
+  // Lot 16 — Import massif de collaborateurs (CSV) : préversion (dry-run) puis commit.
+  app.post("/api/v1/companies/:companyId/import/preview", async (req) => importSvc.preview(ctx(req), (req.params as any).companyId, req.body as any));
+  app.post("/api/v1/companies/:companyId/import/commit", async (req) => importSvc.commit(ctx(req), (req.params as any).companyId, req.body as any));
+  // Lot 16 — Export miroir (réversibilité + portabilité RGPD) : CSV ou JSON.
+  const sendExport = (reply: any, out: { contentType: string; filename: string; body: string }) => {
+    reply.header("content-type", out.contentType);
+    reply.header("content-disposition", `attachment; filename="${out.filename}"`);
+    return out.body;
+  };
+  app.get("/api/v1/companies/:companyId/collaborators/export", async (req, reply) => sendExport(reply, await importSvc.exportCollaborators(ctx(req), { companyId: (req.params as any).companyId, format: (req.query as any).format })));
+  app.get("/api/v1/collaborators/export", async (req, reply) => sendExport(reply, await importSvc.exportCollaborators(ctx(req), { format: (req.query as any).format })));
+  // Modèle CSV commenté à remettre au pilote.
+  app.get("/api/v1/import/template", async (_req, reply) => {
+    reply.header("content-type", "text/csv; charset=utf-8");
+    reply.header("content-disposition", 'attachment; filename="modele-import-collaborateurs.csv"');
+    return readFileSync(new URL("../docs/modele-import-collaborateurs.csv", import.meta.url), "utf8");
+  });
 
   // Effectif / seuils / obligations (D1)
   app.get("/api/v1/companies/:companyId/workforce", async (req) => svc.computeWorkforce(ctx(req), (req.params as any).companyId, (req.query as any).asOf));
