@@ -76,6 +76,7 @@
         <button class="chip" onclick="quick('admin@acme')">Admin</button>
         <button class="chip" onclick="quick('rh@acme')">RH</button>
         <button class="chip" onclick="quick('dg@acme')">DG</button>
+        <button class="chip" style="background:var(--teal);color:#fff;border-color:var(--teal)" onclick="startTour()">🎬 Visite guidée</button>
         <a class="chip" href="/espace" target="_blank">Espace collaborateur ↗</a>
       </div>
     </div>
@@ -122,6 +123,8 @@ const MENU=[
   { t:"🔒 Coffre-fort documentaire", items:[
     ["Déposer un document","deposit"], ["Demander signature","reqSign"],
     ["Signer un document","signDoc"], ["Mes documents","listDocs"] ]},
+  { t:"📥 Import / Export", items:[
+    ["Importer des collaborateurs","importCollab"], ["Exporter (CSV / JSON)","exportCollab"] ]},
 ];
 function buildNav(){
   $("nav").innerHTML = MENU.map((g,gi)=>`
@@ -398,6 +401,131 @@ buildNav();
 VIEWS.dashboard=VIEWS.dashboard; // noop
 panel("Bienvenue", `<p class="desc">Suite RH Rhéos — connecte-toi (Admin/RH/DG en haut à droite), puis déroule les 9 blocs à gauche.</p>
   <div class="banner">Parcours conseillé : <b>Entreprise & Référentiel → Créer une société</b>, puis <b>Ajouter un établissement</b>, puis <b>Gestion administrative → Éditer une embauche</b>, puis <b>Signer le contrat</b> (rôle DG).</div>`);
+</script>
+
+<!-- Lot 16 — Import massif, export miroir, visite guidée -->
+<script>
+/* ---------- Utilitaires fichier / téléchargement authentifié ---------- */
+function fileToB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]||""); r.onerror=rej; r.readAsDataURL(file); }); }
+async function authDownload(url, filename){
+  need();
+  const r = await fetch(API+url, { headers:{ authorization:"Bearer "+S.token } });
+  if(!r.ok){ toast("Téléchargement échoué ("+r.status+")", true); return; }
+  const blob = await r.blob(); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast("Téléchargé ✓");
+}
+function dlTemplate(ev){ ev.preventDefault(); authDownload("/import/template","modele-import-collaborateurs.csv"); return false; }
+function downloadExport(format){ authDownload(`/collaborators/export?format=${format}`, format==="json"?"collaborateurs.json":"collaborateurs.csv"); }
+
+/* ---------- Import massif de collaborateurs ---------- */
+let importState=null;
+const STATUS_LABEL={ toImport:"✅ à importer", imported:"✅ importée", review:"⚠️ à vérifier", rejected:"⛔ rejetée", skipped:"↩︎ déjà présente" };
+VIEWS.importCollab = async function(){
+  need();
+  panel("Importer des collaborateurs", `<p class="desc">Fichier <b>CSV</b> (UTF-8 ou Latin-1). <a href="#" onclick="return dlTemplate(event)">Télécharger le modèle commenté</a>.</p>
+    <div class="row"><div><label>Entreprise cible</label><select id="impCompany"></select></div>
+      <div><label>Fichier CSV</label><input type="file" id="impFile" accept=".csv,text/csv"/></div></div>
+    <button class="act" onclick="doImportPreview()">Prévisualiser</button>
+    <div id="impReport"></div>`);
+  try{ const cos=await api("/companies"); const sel=$("impCompany");
+    (cos.items||[]).forEach(c=>{ const o=document.createElement("option"); o.value=c.id; o.textContent=c.legalName; sel.appendChild(o); });
+    if(!sel.options.length) sel.innerHTML='<option value="">— créez d\'abord une société —</option>';
+  }catch(e){ toast(e.message,true); }
+};
+async function doImportPreview(){
+  const companyId=$("impCompany").value, f=$("impFile").files[0];
+  if(!companyId){ toast("Choisis une entreprise",true); return; }
+  if(!f){ toast("Choisis un fichier CSV",true); return; }
+  try{
+    const fileBase64=await fileToB64(f);
+    const rep=await api(`/companies/${companyId}/import/preview`,"POST",{ fileBase64, filename:f.name });
+    importState={ companyId, fileBase64, filename:f.name, mapping:rep.mapping };
+    renderImportReport(rep,false);
+  }catch(e){ $("impReport").innerHTML=`<div class="banner" style="background:#fdecea;border-color:#f5c6cb;color:#b00020">${e.message}</div>`; }
+}
+async function doImportCommit(){
+  if(!importState) return;
+  try{
+    const rep=await api(`/companies/${importState.companyId}/import/commit`,"POST",{ fileBase64:importState.fileBase64, filename:importState.filename, mapping:importState.mapping });
+    renderImportReport(rep,true); toast(`${rep.summary.imported} collaborateur(s) importé(s) ✓`);
+  }catch(e){ toast(e.message,true); }
+}
+function renderImportReport(rep, done){
+  const s=rep.summary, toDo=s.total-s.rejected-s.review-s.skipped;
+  const badge=`<b>${s.imported||0} importées</b>, ${s.review} à vérifier, ${s.rejected} rejetées${s.skipped?`, ${s.skipped} déjà présentes`:""} <span class="muted">— ${s.total} lignes</span>`;
+  const rows=rep.rows.map(r=>({ ligne:r.line, statut:STATUS_LABEL[r.status]||r.status, nom:r.record.lastName||"", prénom:r.record.firstName||"", contrat:r.record.contractType||"—", motif:(r.messages||[]).join(" ; ")||"—" }));
+  const btn = done||toDo<=0 ? "" : `<button class="act" onclick="doImportCommit()">Confirmer l'import (${toDo} ligne(s))</button>`;
+  $("impReport").innerHTML=`<div class="card"><h2>${done?"Rapport d'import":"Préversion (aucune écriture)"}</h2>
+    <div class="banner" style="background:#eef7f6;border-color:#bfe3dd;color:#0d5c52">${badge}</div>${table(rows)}${btn}</div>`;
+}
+
+/* ---------- Export miroir ---------- */
+VIEWS.exportCollab = function(){ need(); panel("Exporter les collaborateurs", `<p class="desc">Réversibilité & future portabilité <b>RGPD</b> — export de tout le tenant.</p>
+  <button class="act" onclick="downloadExport('csv')">Exporter en CSV</button>
+  <button class="act ghost" onclick="downloadExport('json')">Exporter en JSON</button>`); };
+
+/* ---------- Visite guidée (support de démonstration commerciale, tenant DEMO) ---------- */
+async function tapi(path, method, body, token){
+  const r=await fetch(API+path,{ method:method||"GET", headers:{ "content-type":"application/json", ...(token?{authorization:"Bearer "+token}:{}) }, body: body?JSON.stringify(body):undefined });
+  let d; try{ d=await r.json(); }catch{ d=await r.text(); }
+  if(!r.ok) throw new Error((d&&d.message)||("Erreur "+r.status)); return d;
+}
+const tlogin=async(email)=>(await tapi("/auth/login","POST",{email,password:"secret"})).token;
+const T={};
+const TOUR=[
+  { title:"Bienvenue dans la visite guidée Rhéos", desc:"Nous allons dérouler le <b>cycle RH complet</b> sur le tenant de démonstration : créer une entreprise → embaucher → signer (séparation des droits) → coffre-fort scellé → congé → briefing du Digital RH Officer. Cliquez sur « Suivant » à chaque étape." },
+  { title:"1 · Connexion & création d'entreprise", desc:"Connexion en administrateur du tenant <b>DEMO</b> et création d'une entité juridique (SIREN valide). Chaque acte est journalisé (événement <code>CompanyCreated</code>).", run: async()=>{
+    T.admin=await tlogin("admin@demo"); T.dg=await tlogin("dg@demo");
+    const co=await tapi("/companies","POST",{ legalName:"Visite Guidée "+Math.floor(Math.random()*1e6), siren:"552100554" },T.admin);
+    T.companyId=co.id; return { "Entreprise":co.legalName, "SIREN":co.siren, "Statut":co.status }; }},
+  { title:"2 · Établissement", desc:"Rattachement d'un établissement (SIRET) ; l'IDCC porte la convention collective datée.", run: async()=>{
+    const e=await tapi(`/companies/${T.companyId}/establishments`,"POST",{ siret:"55210055400013", name:"Établissement Marseille", idcc:"2216" },T.admin);
+    T.estId=e.id; return { "Établissement":e.name, "SIRET":e.siret, "IDCC":e.idcc }; }},
+  { title:"3 · Embauche en cascade", desc:"Une seule action crée la <b>Personne</b>, la <b>Relation de travail</b> (statut PRE_HIRE) et le <b>Contrat</b> (statut DRAFT). Rien n'est signé à ce stade.", run: async()=>{
+    const h=await tapi("/employments","POST",{ person:{lastName:"Dupont",firstName:"Marie"}, legalEntityId:T.companyId, administrativeEstablishmentId:T.estId, startDate:"2026-06-01", contractType:"CDI", grossMonthly:2300, workingTime:35 },T.admin);
+    T.employmentId=h.employment.id; T.contractId=h.contract.id; T.personId=h.employment.personId;
+    return { "Collaborateur":"Marie Dupont", "Relation de travail":h.employment.status, "Contrat":h.contract.status }; }},
+  { title:"4 · Validation & signature (séparation des droits)", desc:"Le RH <b>valide</b> le contrat, mais seul le <b>signataire (DG)</b> peut le <b>signer</b> — séparation stricte imposée. Après signature, le contrat passe <b>ACTIVE</b>.", run: async()=>{
+    await tapi(`/contracts/${T.contractId}/validate`,"POST",{},T.admin);
+    const s=await tapi(`/contracts/${T.contractId}/sign`,"POST",{},T.dg);
+    return { "Validé par":"RH (admin)", "Signé par":"DG (signataire)", "Statut du contrat":s.status }; }},
+  { title:"5 · Coffre-fort documentaire (WORM)", desc:"Dépôt du contrat signé, scellé par une empreinte <b>SHA-256</b>, puis vérification d'intégrité (toute altération est détectée).", run: async()=>{
+    const content="Contrat de travail — Marie Dupont";
+    const doc=await tapi(`/persons/${T.personId}/documents`,"POST",{ type:"CONTRACT", label:"Contrat CDI signé", content },T.admin);
+    const v=await tapi(`/documents/${doc.id}/verify`,"POST",{ content },T.admin);
+    return { "Document":doc.label, "Empreinte":doc.sha256.slice(0,24)+"…", "Intégrité vérifiée":v.valid?"oui ✓":"non" }; }},
+  { title:"6 · Congé (demande & validation)", desc:"Le collaborateur pose un congé payé ; il est validé. Le solde se reconstruit depuis un grand livre <i>append-only</i>.", run: async()=>{
+    const lv=await tapi(`/employments/${T.employmentId}/leave-requests`,"POST",{ type:"PAID", startDate:"2026-12-21", endDate:"2026-12-24" },T.admin);
+    const ap=await tapi(`/leave-requests/${lv.id}/approve`,"POST",{},T.admin);
+    return { "Type":"Congé payé", "Jours":lv.days, "Statut":ap.status }; }},
+  { title:"7 · Briefing du Digital RH Officer", desc:"Le briefing quotidien synthétise l'effectif et les points d'attention — sur le tenant DEMO, riche de sa centaine de collaborateurs.", run: async()=>{
+    const b=await tapi("/rh-officer/briefing","GET",null,T.admin);
+    return { "Effectif":b.workforce?.headcount, "Recommandations":(b.recommendations||[]).length, "Version":b.version }; }},
+  { title:"Visite terminée ✅", desc:"Vous venez de dérouler le cycle RH complet de Rhéos : onboarding, embauche en cascade, séparation des droits à la signature, coffre-fort scellé, congés et pilotage RH — le tout tracé par événements. Merci !" },
+];
+let tourIdx=0;
+function tourOverlay(){ if($("tourOv")) return;
+  document.body.insertAdjacentHTML("beforeend", `<div id="tourOv" style="position:fixed;inset:0;background:rgba(10,20,35,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;">
+    <div style="background:#fff;max-width:640px;width:100%;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+      <div style="display:flex;align-items:center;gap:10px;"><b id="tourTitle" style="color:var(--navy);font-size:18px;"></b><span class="muted" id="tourStep" style="margin-left:auto;font-size:12px;"></span></div>
+      <p id="tourDesc" style="color:var(--ink);font-size:14px;line-height:1.55;"></p>
+      <div id="tourData"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;"><button class="act" id="tourNext" onclick="tourAdvance()">Suivant →</button><button class="chip" onclick="tourClose()">Fermer</button></div>
+    </div></div>`); }
+function tourClose(){ const o=$("tourOv"); if(o) o.remove(); }
+async function startTour(){ tourIdx=0; for(const k in T) delete T[k]; tourOverlay(); await runStep(); }
+async function runStep(){
+  const step=TOUR[tourIdx];
+  $("tourTitle").textContent=step.title; $("tourStep").textContent=`Étape ${tourIdx+1}/${TOUR.length}`;
+  $("tourDesc").innerHTML=step.desc; $("tourNext").disabled=true;
+  $("tourData").innerHTML=step.run?'<p class="muted">Exécution…</p>':"";
+  try{ const data=step.run?await step.run():null; $("tourData").innerHTML=data?kv(data):""; }
+  catch(e){ $("tourData").innerHTML=`<div class="banner" style="background:#fdecea;border-color:#f5c6cb;color:#b00020">Erreur : ${e.message}</div>`; }
+  $("tourNext").disabled=false; $("tourNext").textContent=tourIdx===TOUR.length-1?"Terminer":"Suivant →";
+}
+async function tourAdvance(){ if(tourIdx>=TOUR.length-1){ tourClose(); return; } tourIdx++; await runStep(); }
 </script>
 </body>
 </html>

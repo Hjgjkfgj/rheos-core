@@ -185,6 +185,7 @@ export class PrismaRepository implements Repository {
   listDocumentsByTenant(t: string) { return this.tx(t, (px) => px.document.findMany({ where: { tenantId: t } })) as any; }
   listObligationsByTenant(t: string) { return this.tx(t, (px) => px.obligation.findMany({ where: { tenantId: t } })) as any; }
   listEmploymentsByTenant(t: string) { return this.tx(t, (px) => px.employment.findMany({ where: { tenantId: t } })) as any; }
+  listPersonsByTenant(t: string) { return this.tx(t, (px) => px.person.findMany({ where: { tenantId: t } })) as any; }
 
   // Événements
   async appendDomainEvent(e: DomainEvent) { await this.tx(e.tenantId, (px) => px.domainEvent.create({ data: norm(e) })); }

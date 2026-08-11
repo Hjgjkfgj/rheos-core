@@ -30,6 +30,9 @@ export class AuthService {
     add("rh@acme", "rh", "ACME", ["HrManager"], "secret");
     add("dg@acme", "dg", "ACME", ["Signatory"], "secret");
     add("admin@acme", "admin", "ACME", ["TenantAdmin"], "secret");
+    // Tenant DEMO (jeu de démonstration seedé) — support de la visite guidée commerciale.
+    add("admin@demo", "admin-demo", "DEMO", ["TenantAdmin"], "secret");
+    add("dg@demo", "dg-demo", "DEMO", ["Signatory"], "secret");
   }
 
   login(email: string, password: string): string {

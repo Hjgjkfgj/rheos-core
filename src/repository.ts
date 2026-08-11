@@ -126,6 +126,7 @@ export interface Repository {
   listDocumentsByTenant(tenantId: string): Promise<Doc[]>;
   listObligationsByTenant(tenantId: string): Promise<Obligation[]>;
   listEmploymentsByTenant(tenantId: string): Promise<Employment[]>;
+  listPersonsByTenant(tenantId: string): Promise<Person[]>;
   // Événements
   appendDomainEvent(e: DomainEvent): Promise<void>;
   listDomainEventsByTenant(tenantId: string): Promise<DomainEvent[]>;
@@ -225,6 +226,7 @@ export class MemoryRepository implements Repository {
       p.firstName.toLowerCase() === firstName.toLowerCase() &&
       (!birthDate || p.birthDate === birthDate));
   }
+  async listPersonsByTenant(t: string) { return this.t(this.persons, t); }
   async createEmployment(r: Employment) { this.employments.push(r); return r; }
   async getEmployment(t: string, id: string) { return this.id(this.employments, t, id); }
   async findActiveEmploymentByPerson(t: string, personId: string) { return this.t(this.employments, t).find((e) => e.personId === personId && e.status !== "ENDED") ?? this.t(this.employments, t).find((e) => e.personId === personId); }
