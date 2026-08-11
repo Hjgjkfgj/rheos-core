@@ -11,7 +11,7 @@ on:
     branches: [ main ]
 
 env:
-  SCW_REGION: fr-par
+  SCW_DEFAULT_REGION: fr-par
   IMAGE: ${{ vars.SCW_REGISTRY }}/rheos-core
 
 jobs:
@@ -87,8 +87,8 @@ jobs:
           SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
         run: |
           scw container container update "${{ secrets.SCW_CONTAINER_ID }}" \
-            registry-image="$IMAGE:${{ needs.build-push.outputs.tag }}" region="$SCW_REGION"
-          scw container container deploy "${{ secrets.SCW_CONTAINER_ID }}" region="$SCW_REGION"
+            image="$IMAGE:${{ needs.build-push.outputs.tag }}"
+          scw container container deploy "${{ secrets.SCW_CONTAINER_ID }}"
 
   smoke:
     needs: deploy
