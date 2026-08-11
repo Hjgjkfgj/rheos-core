@@ -58,7 +58,7 @@ scw container container create name=rheos-core region=fr-par \
 # Les SECRETS (JWT_SECRET, ENCRYPTION_KEY, DATABASE_URL, BACKUP_ENCRYPTION_KEY) :
 # console → Container → « Variables d'environnement » → « Ajouter depuis Secret Manager »
 # (référence chaque secret ; ne JAMAIS coller la valeur en clair).
-scw container container deploy <CONTAINER_ID> region=fr-par
+scw container container redeploy <CONTAINER_ID> region=fr-par
 # Récupère SCW_CONTAINER_ID (→ GitHub Secret) et le domaine auto :
 scw container container get <CONTAINER_ID> region=fr-par -o json | grep -i domain_name
 ```
@@ -98,7 +98,7 @@ Scaleway Managed PostgreSQL n'expose **aucun rôle superutilisateur / `BYPASSRLS
 ## 3. Redéploiement (automatique)
 Merge sur `main` → workflow **`.github/workflows/deploy-staging.yml`** :
 `tests → build image → push registry → migrations (URL admin) → deploy container → smoke /health`.
-Redéploiement manuel : `scw container container deploy $SCW_CONTAINER_ID region=fr-par`.
+Redéploiement manuel : `scw container container redeploy $SCW_CONTAINER_ID region=fr-par`.
 
 ## 4. Sauvegardes & restauration
 - **Sauvegarde quotidienne** : workflow `.github/workflows/backup-staging.yml` (cron) →
