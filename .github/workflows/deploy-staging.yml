@@ -60,11 +60,13 @@ jobs:
         env:
           ADMIN_URL: ${{ secrets.DATABASE_URL_ADMIN }}
         run: |
-          PSQL_URL="$(echo "$ADMIN_URL" | cut -d'?' -f1)"   # psql n'accepte pas ?schema=
+          # DATABASE_URL_ADMIN doit finir par ?sslmode=require (TLS obligatoire côté
+          # Scaleway) et NE PAS contenir de paramètre ?schema= (spécifique Prisma).
+          # libpq accepte sslmode dans l'URI → on passe l'URL telle quelle à psql.
           for f in prisma/migrations/*/rls.sql; do
-            [ -f "$f" ] && psql "$PSQL_URL" -v ON_ERROR_STOP=0 -f "$f" || true
+            [ -f "$f" ] && psql "$ADMIN_URL" -v ON_ERROR_STOP=0 -f "$f" || true
           done
-          psql "$PSQL_URL" -v ON_ERROR_STOP=1 -f prisma/staging/rheos-app-grants.sql
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -f prisma/staging/rheos-app-grants.sql
 
   deploy:
     needs: migrate

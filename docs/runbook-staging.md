@@ -23,6 +23,13 @@ L'app tourne avec **`rheos_app`** (non-superutilisateur, `NOBYPASSRLS`, DML seul
 **connexion directe TLS** (`sslmode=require`). Les **migrations** tournent avec
 **l'utilisateur admin** (DDL) — jamais l'app.
 
+> **Format de `DATABASE_URL_ADMIN`** (migrations + sauvegardes) :
+> `postgresql://rheos-corp:***@HOST:PORT/rheos?sslmode=require` — **sans** `?schema=`
+> (paramètre Prisma qui casse `psql`) ni `&connection_limit=` (réservé à l'app).
+> Base PostgreSQL **17** côté Scaleway → `pg_dump`/client doivent être en **v17**.
+> ACL de l'instance : ouverte (le Serverless Container a une IP de sortie dynamique) —
+> défense assurée par TLS + mots de passe forts + RLS ; à resserrer si VPC/Private Network.
+
 ## 1. Déploiement initial (une fois — console/CLI, tu exécutes)
 
 ```bash
@@ -74,6 +81,20 @@ scw container container get <CONTAINER_ID> region=fr-par -o json | grep -i domai
   ou passage à une offre avec peu de connexions). À ce moment : PgBouncer **transaction
   mode**, en gardant `SET LOCAL` (compatible), et baisser `connection_limit` côté Prisma.
 
+## 2b. RLS : `ENABLE` **sans** `FORCE` + garde-fou applicatif
+Scaleway Managed PostgreSQL n'expose **aucun rôle superutilisateur / `BYPASSRLS`**. Or
+`pg_dump`/`pg_restore` doivent contourner la RLS pour lire/écrire toutes les lignes.
+**Décision** : les tables sont en `ENABLE ROW LEVEL SECURITY` **sans `FORCE`** (cf. les
+`prisma/migrations/*/rls.sql`). Conséquences :
+- **`rheos_app`** (rôle applicatif, **non-propriétaire**) reste **intégralement isolé**
+  par la RLS — l'isolation multi-tenant de l'app est inchangée (prouvée par
+  `scripts/rls-check.mjs` : A ne voit que A, deny hors contexte).
+- Le rôle **owner/admin** (`rheos-corp`, réservé aux migrations + sauvegardes, **jamais**
+  à l'app) **contourne** la RLS par la propriété → `pg_dump`/`pg_restore` fonctionnent.
+- **Garde-fou** (`src/db-guard.ts`, `assertNonSuperuserInProd`) : en production l'app
+  **refuse de démarrer** si elle est branchée sur un rôle superuser, `BYPASSRLS`
+  **ou propriétaire de tables** → impossible de servir l'app avec le rôle admin par erreur.
+
 ## 3. Redéploiement (automatique)
 Merge sur `main` → workflow **`.github/workflows/deploy-staging.yml`** :
 `tests → build image → push registry → migrations (URL admin) → deploy container → smoke /health`.
@@ -81,8 +102,12 @@ Redéploiement manuel : `scw container container deploy $SCW_CONTAINER_ID region
 
 ## 4. Sauvegardes & restauration
 - **Sauvegarde quotidienne** : workflow `.github/workflows/backup-staging.yml` (cron) →
-  `scripts/backup.sh` (`pg_dump | gzip | openssl AES-256 | bucket`). Chiffré au repos ;
-  round-trip prouvé (`scripts/` — voir aussi le test local du lot).
+  `scripts/backup.sh` (`pg_dump | gzip | openssl AES-256 | bucket`). Chiffré au repos.
+  ⚠️ **Client PostgreSQL 17** requis (`pg_dump` doit correspondre au serveur PG17) — le
+  workflow installe `postgresql-client-17` (dépôt PGDG).
+- **Round-trip EXÉCUTÉ et prouvé** (staging réel) : `pg_dump` (admin) → AES-256 → bucket
+  `rheos-backups-staging` → retéléchargé → déchiffré → restauré sur un Postgres 17 jetable
+  → **3 sociétés / 106 collaborateurs** retrouvés (= parité avec la source).
 - **Restauration (base JETABLE)** :
   ```bash
   # créer une base jetable (console) puis :

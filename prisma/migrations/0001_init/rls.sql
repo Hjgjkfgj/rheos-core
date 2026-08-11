@@ -25,7 +25,12 @@ DECLARE tables text[] := ARRAY[
 BEGIN
   FOREACH t IN ARRAY tables LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', t);
+    -- NO FORCE : le rôle applicatif rheos_app (non-propriétaire) reste soumis à la RLS,
+    -- mais le rôle owner/admin (migrations + sauvegardes pg_dump) la contourne par la
+    -- propriété. Sur Scaleway, aucun rôle n'est superuser/BYPASSRLS : sans ce NO FORCE,
+    -- pg_dump/pg_restore par l'admin échouerait sur les tables RLS.
+    EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I;', t);   -- idempotent (re-run)
     EXECUTE format($p$
       CREATE POLICY tenant_isolation ON %I
         USING ("tenantId" = current_tenant())

@@ -7,7 +7,9 @@ DECLARE tables text[] := ARRAY['Group', 'LegalEntity', 'Establishment', 'Operati
 BEGIN
   FOREACH t IN ARRAY tables LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', t);
+    -- NO FORCE (cf. 0001) : rheos_app reste isolé ; l'owner/admin contourne la RLS par
+    -- la propriété, ce qui rend possibles pg_dump/pg_restore (aucun superuser sur Scaleway).
+    EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY;', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I;', t);
     EXECUTE format($p$
       CREATE POLICY tenant_isolation ON %I
