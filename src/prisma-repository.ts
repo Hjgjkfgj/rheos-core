@@ -186,6 +186,7 @@ export class PrismaRepository implements Repository {
   listObligationsByTenant(t: string) { return this.tx(t, (px) => px.obligation.findMany({ where: { tenantId: t } })) as any; }
   listEmploymentsByTenant(t: string) { return this.tx(t, (px) => px.employment.findMany({ where: { tenantId: t } })) as any; }
   listPersonsByTenant(t: string) { return this.tx(t, (px) => px.person.findMany({ where: { tenantId: t } })) as any; }
+  updatePerson(t: string, id: string, patch: Partial<Person>) { return this.tx(t, (px) => px.person.update({ where: { id }, data: norm(patch) })) as any; }
 
   // Événements
   async appendDomainEvent(e: DomainEvent) { await this.tx(e.tenantId, (px) => px.domainEvent.create({ data: norm(e) })); }
@@ -205,6 +206,7 @@ export class PrismaRepository implements Repository {
   listBankAccountsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.bankAccount.findMany({ where: { tenantId: t, personId } })) as any; }
   createSensitiveId(r: SensitiveIdentifier) { return this.tx(r.tenantId, (px) => px.sensitiveIdentifier.create({ data: norm(r) })); }
   getSensitiveId(t: string, id: string) { return this.tx(t, (px) => px.sensitiveIdentifier.findFirst({ where: { id, tenantId: t } })) as any; }
+  updateSensitiveId(t: string, id: string, patch: Partial<SensitiveIdentifier>) { return this.tx(t, (px) => px.sensitiveIdentifier.update({ where: { id }, data: norm(patch) })) as any; }
   listSensitiveIdsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.sensitiveIdentifier.findMany({ where: { tenantId: t, personId } })) as any; }
   async appendAudit(e: AuditLog) { await this.tx(e.tenantId ?? "", (px) => px.auditLog.create({ data: norm(e) })); }
   listAuditByTenant(t: string) { return this.tx(t, (px) => px.auditLog.findMany({ where: { tenantId: t }, orderBy: { at: "desc" }, take: 200 })) as any; }

@@ -27,6 +27,7 @@ import { assertCan } from "./auth.js";
 import { AssistantService } from "./services-assistant.js";
 import { SensitiveService } from "./services-sensitive.js";
 import { ImportService } from "./services-import.js";
+import { PrivacyService } from "./services-privacy.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -49,6 +50,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   const financeSvc = new FinanceService(repo, bus);
   const sensitiveSvc = new SensitiveService(repo, bus);
   const importSvc = new ImportService(repo, bus, svc);
+  const privacySvc = new PrivacyService(repo, bus, mvp);
   // Archivage automatique du coffre au départ du collaborateur (le coffre n'est
   // jamais détruit ; le collaborateur garde l'accès à ses documents).
   bus.subscribe((e) => {
@@ -121,6 +123,8 @@ export function build(repo: Repository = new MemoryRepository()) {
   // Espace collaborateur — PWA (page + manifest + service worker + icône, publics)
   const web = (f: string) => new URL(`../web/${f}`, import.meta.url);
   app.get("/espace", async (_req, reply) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web("espace.html"), "utf8"); });
+  // Lot 17 — Politique de confidentialité + mentions légales (page publique).
+  app.get("/confidentialite", async (_req, reply) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web("confidentialite.html"), "utf8"); });
   app.get("/manifest.webmanifest", async (_req, reply) => { reply.header("content-type", "application/manifest+json; charset=utf-8"); return readFileSync(web("manifest.webmanifest"), "utf8"); });
   app.get("/sw.js", async (_req, reply) => { reply.header("content-type", "text/javascript; charset=utf-8"); reply.header("service-worker-allowed", "/"); return readFileSync(web("sw.js"), "utf8"); });
   app.get("/icon.svg", async (_req, reply) => { reply.header("content-type", "image/svg+xml; charset=utf-8"); return readFileSync(web("icon.svg"), "utf8"); });
@@ -188,6 +192,19 @@ export function build(repo: Repository = new MemoryRepository()) {
     reply.header("content-disposition", 'attachment; filename="modele-import-collaborateurs.csv"');
     return readFileSync(new URL("../docs/modele-import-collaborateurs.csv", import.meta.url), "utf8");
   });
+
+  // Lot 17 — Droits des personnes (RGPD). Droit d'accès (JSON ou PDF, journalisé) + anonymisation.
+  app.get("/api/v1/persons/:personId/access-request", async (req, reply) => {
+    const personId = (req.params as any).personId;
+    if (((req.query as any).format || "json").toLowerCase() === "pdf") {
+      const buf = await privacySvc.accessRequestPdf(ctx(req), personId);
+      reply.header("content-type", "application/pdf");
+      reply.header("content-disposition", 'attachment; filename="droit-d-acces.pdf"');
+      return reply.send(buf);
+    }
+    return privacySvc.accessRequest(ctx(req), personId);
+  });
+  app.post("/api/v1/persons/:personId/anonymize", async (req) => privacySvc.anonymizePerson(ctx(req), (req.params as any).personId));
 
   // Effectif / seuils / obligations (D1)
   app.get("/api/v1/companies/:companyId/workforce", async (req) => svc.computeWorkforce(ctx(req), (req.params as any).companyId, (req.query as any).asOf));
