@@ -33,6 +33,9 @@ export class AuthService {
     // Tenant DEMO (jeu de démonstration seedé) — support de la visite guidée commerciale.
     add("admin@demo", "admin-demo", "DEMO", ["TenantAdmin"], "secret");
     add("dg@demo", "dg-demo", "DEMO", ["Signatory"], "secret");
+    // Tenant PILOTE — neuf et vide, pour la recette client (docs/pilote/scenario-recette.md).
+    add("admin@pilote", "admin-pilote", "PILOTE", ["TenantAdmin"], "pilote2026");
+    add("dg@pilote", "dg-pilote", "PILOTE", ["Signatory"], "pilote2026");
   }
 
   login(email: string, password: string): string {

@@ -208,6 +208,18 @@ tabs.forEach((t, i) => {
   });
 });
 
+// --- Accès réel (staging/prod) : lien magique généré par le RH ---
+// L'URL /espace#token=<jwt> ouvre directement l'espace de CE collaborateur (rôle Employee,
+// scopé à sa personne). Remplace le bouton démo (qui, lui, s'appuie sur dev-token, désactivé en prod).
+(function(){
+  const m = location.hash.match(/token=([^&]+)/);
+  if (!m) return;
+  TOKEN = decodeURIComponent(m[1]);
+  try { history.replaceState(null, "", location.pathname); } catch(e){}
+  const sc = $("startCard"); if (sc) sc.classList.add("hidden");
+  loadAll().catch(e => { if (sc) sc.classList.remove("hidden"); $("sub").textContent = "Accès invalide ou expiré : " + e.message; });
+})();
+
 // --- Démo : prépare un collaborateur et ouvre son espace ---
 $("startBtn").addEventListener("click", startDemo);
 async function startDemo(){
