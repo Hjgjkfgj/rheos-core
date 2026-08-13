@@ -28,6 +28,7 @@ import { AssistantService } from "./services-assistant.js";
 import { SensitiveService } from "./services-sensitive.js";
 import { ImportService } from "./services-import.js";
 import { PrivacyService } from "./services-privacy.js";
+import { getDocumentStore } from "./doc-store.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -36,7 +37,8 @@ export function build(repo: Repository = new MemoryRepository()) {
   const bus = new EventBus();
   bus.onPersist = (e) => { void repo.appendDomainEvent(e); };
   const svc = new Services(repo, bus);
-  const mvp = new MvpServices(repo, bus);
+  const docStore = getDocumentStore(); // stockage du contenu documentaire (mémoire ou S3/Object Storage)
+  const mvp = new MvpServices(repo, bus, undefined, docStore);
   const notifications = new NotificationService(repo);
   const rhOfficer = new RhOfficerService(repo, notifications);
   const timeSvc = new TimeService(repo, bus);
@@ -359,6 +361,13 @@ export function build(repo: Repository = new MemoryRepository()) {
   });
   app.get("/api/v1/persons/:personId/documents", async (req) => mvp.listDocuments(ctx(req), (req.params as any).personId));
   app.post("/api/v1/documents/:id/verify", async (req) => mvp.verifyIntegrity(ctx(req), (req.params as any).id, (req.body as any)?.content ?? ""));
+  // Lot 19 — téléchargement du contenu (droits + intégrité recalculée + journalisation).
+  app.get("/api/v1/documents/:id/download", async (req, reply) => {
+    const out = await mvp.downloadDocument(ctx(req), (req.params as any).id);
+    reply.header("content-type", out.contentType);
+    reply.header("content-disposition", `attachment; filename="${out.filename.replace(/[\r\n"]/g, "")}"`);
+    return reply.send(out.bytes);
+  });
   app.post("/api/v1/documents/:id/signature/request", async (req) => mvp.requestSignature(ctx(req), (req.params as any).id, req.body as any));
   app.post("/api/v1/documents/:id/signature/sign", async (req) => mvp.signDocument(ctx(req), (req.params as any).id, req.body as any));
   // Cycle de vie documentaire

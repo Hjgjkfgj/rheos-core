@@ -44,6 +44,7 @@ export interface Doc {
   type: DocumentType; category?: string; label: string;
   periodStart?: string; periodEnd?: string; version: number;
   storageRef: string; sha256: string;
+  contentType?: string; sizeBytes?: number; // Lot 19 — contenu réellement stocké
   status: DocumentStatus; signatureStatus: "NONE" | "PENDING" | "SIGNED" | "REFUSED";
   signedAt?: string; signatureProof?: string;
   retentionUntil?: string; retentionTrigger?: string; legalHold?: boolean;

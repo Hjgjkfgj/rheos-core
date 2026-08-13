@@ -9,29 +9,56 @@ import { computeRetentionUntil, retentionPolicyFor } from "./domain/retention.js
 import { renderTemplate, missingVariables, MissingTemplateDataError } from "./domain/templates.js";
 import { SignatureProvider, OtpSignatureProvider } from "./signature.js";
 import { countLeaveDays, acquiredDays, referencePeriod, LEAVE_TYPE_POLICY, APPROVAL_POLICY } from "./domain/leave.js";
+import { DocumentStore, MemoryDocumentStore } from "./doc-store.js";
+import { encryptBytes, decryptBytes } from "./domain/doc-crypto.js";
 import { Ctx, AppError, DocumentType, DocumentStatus, LeaveType } from "./types.js";
 
+// Coffre-fort — garde-fous de dépôt (Lot 19).
+const MAX_DOC_BYTES = 20 * 1024 * 1024; // 20 Mo
+const ALLOWED_CONTENT_TYPES = new Set([
+  "application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .doc/.docx
+  "application/octet-stream",
+]);
+
 export class MvpServices {
-  constructor(private repo: Repository, private bus: EventBus, private signer: SignatureProvider = new OtpSignatureProvider()) {}
+  constructor(private repo: Repository, private bus: EventBus, private signer: SignatureProvider = new OtpSignatureProvider(), private docStore: DocumentStore = new MemoryDocumentStore()) {}
 
   // --------------------------- D10 — Coffre-fort ---------------------------
-  // Le CONTENU n'entre jamais dans le coffre : on scelle un sha256 (WORM) et une
-  // référence de stockage. L'admin technique (sans document.read) n'y accède pas.
-  async depositDocument(ctx: Ctx, input: { personId?: string; employmentId?: string; type: DocumentType; category?: string; label: string; content?: string; sha256?: string; periodStart?: string; periodEnd?: string; retentionUntil?: string; legalHold?: boolean }) {
+  // Le contenu est chiffré (AES-256-GCM, clé PAR TENANT) puis écrit dans le stockage
+  // objet ; la base ne garde que le sha256 (WORM) + la référence. L'admin technique
+  // (sans document.read) n'accède ni au contenu ni à la clé.
+  async depositDocument(ctx: Ctx, input: { personId?: string; employmentId?: string; type: DocumentType; category?: string; label: string; content?: string; contentBase64?: string; contentType?: string; sha256?: string; periodStart?: string; periodEnd?: string; retentionUntil?: string; legalHold?: boolean }) {
     assertCan(ctx, "document.write");
     if (!input.personId && !input.employmentId) throw new AppError(400, "bad_request", "personId ou employmentId requis");
-    const sha256 = input.sha256 ?? (input.content != null ? createHash("sha256").update(input.content).digest("hex") : undefined);
-    if (!sha256) throw new AppError(400, "bad_request", "content ou sha256 requis pour le scellement");
+    // Contenu : base64 (binaire, ex. PDF) ou texte. On scelle le SHA-256 du contenu EN CLAIR.
+    const bytes = input.contentBase64 != null ? Buffer.from(input.contentBase64, "base64")
+      : input.content != null ? Buffer.from(input.content, "utf8") : undefined;
+    const id = uid();
+    let sha256 = input.sha256;
+    let storageRef = `vault://${id}`;                 // référence par défaut (dépôt métadonnées seul)
+    let contentType: string | undefined, sizeBytes: number | undefined;
+    if (bytes) {
+      if (bytes.length > MAX_DOC_BYTES) throw new AppError(413, "too_large", `Document trop volumineux (max ${MAX_DOC_BYTES / 1024 / 1024} Mo)`);
+      contentType = input.contentType ?? "application/octet-stream";
+      if (!ALLOWED_CONTENT_TYPES.has(contentType)) throw new AppError(415, "unsupported_type", `Type de contenu non autorisé : ${contentType}`);
+      sha256 = createHash("sha256").update(bytes).digest("hex");
+      sizeBytes = bytes.length;
+      storageRef = `tenants/${ctx.tenantId}/documents/${id}`;
+      // Chiffrement PAR TENANT puis écriture dans le stockage objet (jamais de clair au repos).
+      await this.docStore.put(storageRef, encryptBytes(ctx.tenantId, bytes), "application/octet-stream");
+    }
+    if (!sha256) throw new AppError(400, "bad_request", "content, contentBase64 ou sha256 requis pour le scellement");
     const depositDate = new Date().toISOString().slice(0, 10);
     let employmentEndDate: string | undefined;
     if (input.employmentId) employmentEndDate = (await this.repo.getEmployment(ctx.tenantId, input.employmentId))?.endDate;
     const policy = retentionPolicyFor(input.type);
     const retentionUntil = input.retentionUntil ?? computeRetentionUntil(input.type, { depositDate, employmentEndDate });
     const doc: any = {
-      id: uid(), tenantId: ctx.tenantId, personId: input.personId, employmentId: input.employmentId,
+      id, tenantId: ctx.tenantId, personId: input.personId, employmentId: input.employmentId,
       type: input.type, category: input.category, label: input.label,
       periodStart: input.periodStart, periodEnd: input.periodEnd, version: 1,
-      storageRef: `vault://${uid()}`, sha256,
+      storageRef, sha256, contentType, sizeBytes,
       status: "DRAFT" as DocumentStatus, signatureStatus: "NONE",
       retentionUntil, retentionTrigger: policy.trigger, legalHold: input.legalHold ?? false,
       createdBy: ctx.userId, createdAt: new Date().toISOString(), sealed: true,
@@ -59,6 +86,27 @@ export class MvpServices {
     const d = await this.getDocument(ctx, id);
     const computed = createHash("sha256").update(content).digest("hex");
     return { valid: computed === d.sha256, sha256: d.sha256 };
+  }
+
+  /// Téléchargement du contenu (Lot 19) : contrôle de droits (document.read + tenant),
+  /// déchiffrement par tenant, VÉRIFICATION D'INTÉGRITÉ (SHA-256 recalculé = registre,
+  /// sinon erreur explicite), et JOURNALISATION de chaque téléchargement.
+  async downloadDocument(ctx: Ctx, id: string): Promise<{ bytes: Buffer; contentType: string; filename: string }> {
+    const d: any = await this.getDocument(ctx, id); // 404 hors tenant / introuvable ; 403 sans document.read
+    if (!d.storageRef || d.storageRef.startsWith("vault://")) {
+      throw new AppError(409, "no_content", "Aucun contenu stocké pour ce document (dépôt métadonnées seul).");
+    }
+    let blob: Buffer;
+    try { blob = await this.docStore.get(d.storageRef); }
+    catch { throw new AppError(404, "content_missing", "Contenu introuvable dans le stockage objet."); }
+    const bytes = decryptBytes(ctx.tenantId, blob);
+    const computed = createHash("sha256").update(bytes).digest("hex");
+    if (computed !== d.sha256) {
+      throw new AppError(409, "integrity_failure", "Échec d'intégrité : l'empreinte du contenu ne correspond pas au registre scellé.");
+    }
+    await this.repo.appendAudit({ id: uid(), tenantId: ctx.tenantId, userId: ctx.userId, action: "document.download", entityType: "Document", entityId: id, at: new Date().toISOString() });
+    this.bus.publish(ctx.tenantId, "Document", id, "DocumentDownloaded", { sha256: d.sha256 }, ctx.userId);
+    return { bytes, contentType: d.contentType || "application/octet-stream", filename: d.label || id };
   }
 
   // --- Cycle de vie documentaire DRAFT→REVIEW→VALIDATED→SIGNED→PUBLISHED→ARCHIVED ---
@@ -155,6 +203,10 @@ export class MvpServices {
     if (d.legalHold) throw new AppError(409, "legal_hold", "Suppression bloquée : legal hold actif");
     const today = new Date().toISOString().slice(0, 10);
     if (!d.retentionUntil || d.retentionUntil >= today) throw new AppError(409, "retention_active", "Suppression bloquée : durée de conservation non échue");
+    // Suppression contrôlée = objet réellement retiré du stockage (Lot 19) + ligne registre.
+    if (d.storageRef && !String(d.storageRef).startsWith("vault://")) {
+      try { await this.docStore.delete(d.storageRef); } catch { /* best-effort : la ligne registre part quand même */ }
+    }
     await this.repo.deleteDocument(ctx.tenantId, id);
     this.bus.publish(ctx.tenantId, "Document", id, "DocumentDeleted", { reason: "retention_expired" }, ctx.userId);
     return { deleted: true };

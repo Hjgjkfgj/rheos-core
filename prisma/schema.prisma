@@ -507,6 +507,8 @@ model Document {
   version         Int             @default(1)
   storageRef      String          // référence objet (stockage), pas le binaire
   sha256          String          // scellement (WORM)
+  contentType     String?         // type MIME du contenu stocké (Lot 19)
+  sizeBytes       Int?            // taille du contenu en octets (Lot 19)
   status          DocumentStatus  @default(DRAFT)
   signatureStatus SignatureStatus @default(NONE)
   signedAt        DateTime?

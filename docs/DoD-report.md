@@ -1,5 +1,15 @@
 # Rhéos — Rapport final Definition of Done (MVP P1+P2) — v0.2.0-mvp
 
+> **⚠️ ERRATUM (Lot 19, 2026)** — La mention « **D10 coffre-fort WORM** » ci-dessous était
+> **surévaluée** : jusqu'au Lot 19, le coffre-fort ne conservait que l'**empreinte SHA-256**
+> (scellement) et une référence `storageRef` *placeholder* — **le contenu binaire des
+> documents n'était stocké nulle part**. C'était donc un **registre d'intégrité**, pas un
+> coffre-fort de fichiers. **Corrigé par le Lot 19** : contenu chiffré (AES-256-GCM, clé par
+> tenant) écrit dans un stockage objet (Scaleway Object Storage), téléchargement avec contrôle
+> de droits + vérification d'intégrité + journalisation, suppression contrôlée qui retire
+> réellement l'objet (legal hold bloquant). Voir `test/document-storage.test.ts` et
+> `docs/etat-des-lieux.md §1/§3`.
+
 **Statut : DoD 100 % VERTE** (hors hypothèses juridiques ouvertes, cf. `docs/gaps.md`).
 Preuves : **193 tests** (188 mémoire + 5 Prisma) verts ; typecheck strict vert ;
 `lint:vocab` vert ; CI **4 jobs verts** (lint · test-memory · typecheck · prisma-rls),
