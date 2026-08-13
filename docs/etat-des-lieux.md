@@ -116,10 +116,16 @@ code, et son niveau avec preuve.
   - CODÉ ✅ · TESTÉ ✅ `test/d10-vault.test.ts`, `test/vault.test.ts`.
   - **DÉPLOYÉ ✅** — staging : dépôt → `sha256=ba7816bf8f01cfea…` ; vérification contenu exact
     → `valid=true` ; contenu altéré → `valid=false`.
-  - **⚠️ Limite MAJEURE** : **le contenu binaire du document n'est stocké nulle part**.
-    Rhéos conserve l'empreinte + des métadonnées + une *référence* de stockage (`storageRef`),
-    mais **aucun backend de fichiers (type S3) n'est branché**. C'est aujourd'hui un
-    **registre d'intégrité**, pas un vrai coffre-fort de fichiers. Voir §3.
+  - **⚠️ ERRATUM — CORRIGÉ PAR LE LOT 19** : à la rédaction de cet audit, **le contenu binaire
+    du document n'était stocké nulle part** (seule l'empreinte + un `storageRef` placeholder) —
+    un registre d'intégrité, pas un coffre-fort de fichiers. **Le Lot 19 a comblé ce trou** :
+    contenu chiffré (AES-256-GCM, clé par tenant) écrit dans **Scaleway Object Storage**,
+    téléchargement avec droits + intégrité recalculée + journalisation, suppression contrôlée
+    qui retire réellement l'objet (legal hold bloquant). **DÉPLOYÉ ✅ (prouvé sur staging)** :
+    dépôt d'un vrai PDF → retéléchargement → **hash identique** ; objet présent dans le bucket
+    **et chiffré au repos** (1ers octets ≠ `%PDF`) ; accès d'un autre tenant → **404**.
+    TESTÉ ✅ `test/document-storage.test.ts`. Cette ligne remonte donc le D10 de « registre
+    d'intégrité » à **coffre-fort réel** (voir §3, corrigé lui aussi).
 
 ### IA « cadrée » (assistant, briefing, extraction)
 *« Un assistant RH qui ne révèle jamais une donnée hors droits, et un briefing quotidien. »*
@@ -243,11 +249,13 @@ stockage documentaire et de preuves d'échelle.
   append-only), mais le bus lui-même **n'est pas distribué** et ne survit pas à un redémarrage en
   vol. **OK au pilote** ; **à remplacer** par un vrai broker (type Kafka/NATS) pour des traitements
   asynchrones à l'échelle. **Quand** : quand on voudra du temps-réel inter-services.
-- **Stockage des documents (coffre-fort)** — **⚠️ le point le plus faible.** Aujourd'hui, **les
-  fichiers ne sont stockés nulle part** : Rhéos garde l'empreinte SHA-256 + métadonnées + une
-  référence `storageRef` **qui ne pointe vers aucun stockage réel**. **Ça ne « scale » pas — ça
-  n'existe pas encore.** **À faire** : brancher un stockage objet (S3/Scaleway Object Storage) avec
-  chiffrement, avant toute mise en production du coffre-fort. **Bloquant commercialisation.**
+- **Stockage des documents (coffre-fort)** — **⚠️ ERRATUM — CORRIGÉ PAR LE LOT 19.** À la
+  rédaction, c'était le point le plus faible : les fichiers n'étaient stockés nulle part
+  (`storageRef` placeholder). **Depuis le Lot 19**, le contenu est chiffré par tenant et écrit
+  dans **Scaleway Object Storage** (bucket `rheos-documents-staging`) ; téléchargement contrôlé +
+  intégrité + journalisation ; suppression réelle de l'objet. **Prouvé sur staging** (dépôt PDF →
+  download → hash identique ; objet chiffré dans le bucket). Reste à surveiller à l'échelle : coût
+  et débit Object Storage, cycle de vie/versioning, et suppression propagée aux **sauvegardes**.
 - **Observabilité** — *capacité à voir ce qui se passe en production (métriques, traces, alertes).*
   **Promesse non tenue** : **pas d'OpenTelemetry**, pas de métriques applicatives, pas de traçage
   distribué. Il n'y a que `/health` + les logs bruts de la console Scaleway + un monitor uptime
