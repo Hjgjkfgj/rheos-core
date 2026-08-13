@@ -207,6 +207,17 @@ export function build(repo: Repository = new MemoryRepository()) {
     return privacySvc.accessRequest(ctx(req), personId);
   });
   app.post("/api/v1/persons/:personId/anonymize", async (req) => privacySvc.anonymizePerson(ctx(req), (req.params as any).personId));
+  // Accès collaborateur (recette pilote) : le RH génère un lien magique vers l'espace
+  // self-service, scopé à CETTE personne (rôle Employee). Remplace dev-token en production.
+  app.post("/api/v1/persons/:personId/access-token", async (req) => {
+    const c = ctx(req);
+    assertCan(c, "person.write");
+    const personId = (req.params as any).personId;
+    const p = await repo.getPerson(c.tenantId, personId);
+    if (!p) throw new AppError(404, "not_found", "Personne introuvable");
+    const token = signToken({ sub: `collab-${personId}`, tenantId: c.tenantId, personId, roles: ["Employee"] }, { expiresInSec: 30 * 24 * 3600 });
+    return { token, espaceUrl: `/espace#token=${encodeURIComponent(token)}` };
+  });
 
   // Effectif / seuils / obligations (D1)
   app.get("/api/v1/companies/:companyId/workforce", async (req) => svc.computeWorkforce(ctx(req), (req.params as any).companyId, (req.query as any).asOf));
