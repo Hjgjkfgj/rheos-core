@@ -169,6 +169,21 @@ export function build(repo: Repository = new MemoryRepository()) {
     return { ok: true, message: "Mot de passe modifié. Vous pouvez vous connecter." };
   });
 
+  // Diagnostic (authentifié, permission account.reset) : tente un envoi RÉEL et renvoie le
+  // résultat + l'erreur EXACTE de Scaleway (pas un secret) → diagnostic sans fouiller les logs.
+  app.post("/api/v1/_diag/email-test", async (req) => {
+    const c = ctx(req);
+    assertCan(c, "account.reset");
+    const to = String((req.body as any)?.to ?? "").trim();
+    if (!to.includes("@")) throw new AppError(422, "bad_request", "Champ 'to' (email) requis.");
+    try {
+      await emailSender.send({ to, subject: "Test Rhéos — Transactional Email", text: "Test de configuration de l'envoi d'email (Rhéos / Circul'RH 360)." });
+      return { ok: true, mode: emailMode(), sentTo: to };
+    } catch (e: any) {
+      return { ok: false, mode: emailMode(), error: String(e?.message ?? e).slice(0, 600) };
+    }
+  });
+
   // Volet 2 — Réinitialisation par la RH / le directeur de site (authentifié). L'autorité
   // est côté API : permission account.reset + périmètre (ABAC) + hiérarchie de rôles.
   // Cible par accountId | personId | email ; mode "email" (lien) ou "temp" (mdp temporaire
