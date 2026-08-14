@@ -101,7 +101,7 @@ const MENU=[
   { t:"🏢 Entreprise & Référentiel", items:[
     ["Créer une société","company"], ["Ajouter un établissement","establishment"],
     ["Effectif & obligations","workforce"], ["Simuler des embauches","simulate"],
-    ["Organigramme","org"] ]},
+    ["Organigramme","org"], ["Convention officielle (KALI)","regAgreement"] ]},
   { t:"🗂️ Gestion administrative", items:[
     ["Éditer une embauche","hire"], ["Signer le contrat","signContract"],
     ["Créer un avenant","amendment"], ["Faire une sortie","departure"],
@@ -498,6 +498,21 @@ VIEWS.accessLink = function(){ need();
     <div id="accz"></div>`);
 };
 function dlAccessRequest(fmt){ authDownload(`/persons/${S.personId}/access-request?format=${fmt}`, `dossier-collaborateur.${fmt}`); }
+
+/* ---------- Convention officielle (référentiel réglementaire KALI) ---------- */
+VIEWS.regAgreement = function(){ need(); panel("Convention officielle (référentiel KALI)", `<p class="desc">Texte consolidé officiel d'une convention collective (source <b>KALI/Légifrance</b>), versionné et daté.</p>
+  <div class="row">${F([{id:"regIdcc",label:"IDCC (ex. 1979 = HCR · 2216 = commerce alimentaire)",val:"2216"}])}</div>
+  <button class="act" onclick="doRegAgreement()">Afficher la convention officielle</button><div id="regz"></div>`); };
+async function doRegAgreement(){
+  try{ const idcc=$("regIdcc").value.trim(); const a=await api(`/regulatory/agreements/${idcc}`);
+    if(!a.currentText){ $("regz").innerHTML=`<div class="banner">Aucun texte ingéré pour l'IDCC ${idcc} (ingestion : <code>npm run regulatory:fetch ${idcc}</code>).</div>`; return; }
+    const d=a.currentText.effectiveDate, dd=d?d.split('-').reverse().join('/'):'—';
+    $("regz").innerHTML=`<div class="card"><h2>${a.currentText.title}</h2>
+      <div class="banner" style="background:#eef7f6;border-color:#bfe3dd;color:#0d5c52">📖 Texte officiel <b>version du ${dd}</b> — source <b>${a.source.name}</b>${a.source.url?` · <a href="${a.source.url}" target="_blank" rel="noopener">consulter sur Légifrance ↗</a>`:''}</div>
+      ${kv({ "IDCC":a.idcc, "Version courante":a.currentText.version, "Date d'effet":dd, "Empreinte (SHA-256)":a.currentText.hash.slice(0,24)+'…', "Récupéré le":a.currentText.fetchedAt, "Versions connues":a.versionsCount, "Règles publiées":a.publishedRules.length })}
+      ${a.publishedRules.length?('<h2 style="margin-top:14px">Règles publiées</h2>'+table(a.publishedRules.map(r=>({type:r.type, source:r.sourceRef})))):''}</div>`;
+  }catch(e){ toast(e.message,true); }
+}
 async function genAccess(){
   try{ const r=await api(`/persons/${S.personId}/access-token`,"POST",{}); const url=location.origin+r.espaceUrl;
     $("accz").innerHTML=`<div class="card"><h2>Lien d'accès du collaborateur</h2>
