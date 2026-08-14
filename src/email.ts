@@ -48,6 +48,14 @@ export class ScalewayEmailSender implements EmailSender {
   }
 }
 
+// Mode d'envoi effectif (diagnostic, sans exposer la clé) : "scaleway" si la clé TEM et le
+// projet sont présents, sinon "console". Le Project ID DOIT être un UUID (≠ Access Key SCW…).
+export function emailMode(): "scaleway" | "console" {
+  const key = process.env.TEM_SECRET_KEY;
+  const project = process.env.TEM_PROJECT_ID ?? process.env.SCW_DEFAULT_PROJECT_ID;
+  return key && project ? "scaleway" : "console";
+}
+
 export function getEmailSender(): EmailSender {
   const key = process.env.TEM_SECRET_KEY;
   const project = process.env.TEM_PROJECT_ID ?? process.env.SCW_DEFAULT_PROJECT_ID;
