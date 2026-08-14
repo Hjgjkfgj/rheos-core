@@ -16,6 +16,15 @@ export function hashPassword(pw: string): string {
   return `${salt}:${dk}`;
 }
 
+// Règles de robustesse du mot de passe (Lot UI-1b). Renvoie un message d'erreur, ou null si OK.
+// Volontairement simples et affichables à l'utilisateur : ≥ 10 caractères, une lettre, un chiffre.
+export function validatePasswordStrength(pw: string): string | null {
+  if (!pw || pw.length < 10) return "Le mot de passe doit contenir au moins 10 caractères.";
+  if (!/[a-zA-Z]/.test(pw)) return "Le mot de passe doit contenir au moins une lettre.";
+  if (!/[0-9]/.test(pw)) return "Le mot de passe doit contenir au moins un chiffre.";
+  return null;
+}
+
 export function verifyPassword(pw: string, stored: string): boolean {
   const [salt, dk] = stored.split(":");
   const calc = scryptSync(pw, salt, 32);
