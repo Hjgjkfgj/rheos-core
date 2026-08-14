@@ -175,13 +175,26 @@ export function build(repo: Repository = new MemoryRepository()) {
     const c = ctx(req);
     assertCan(c, "account.reset");
     const to = String((req.body as any)?.to ?? "").trim();
-    if (!to.includes("@")) throw new AppError(422, "bad_request", "Champ 'to' (email) requis.");
+    const key = process.env.TEM_SECRET_KEY ?? "";
+    const project = process.env.TEM_PROJECT_ID ?? process.env.SCW_DEFAULT_PROJECT_ID ?? "";
+    const region = process.env.TEM_REGION ?? "fr-par";
+    const out: any = { mode: emailMode(), projectId: project || "(absent)", keyLen: key.length };
+    // 1) LISTER les domaines TEM avec la clé (même famille de permission) → situe le problème :
+    //    403 = la clé n'a aucun droit TEM (mauvaise clé / policy pas sur elle) ;
+    //    200 = la clé a le droit ; on voit alors si rheos-corp.fr est bien dans CE projet.
     try {
-      await emailSender.send({ to, subject: "Test Rhéos — Transactional Email", text: "Test de configuration de l'envoi d'email (Rhéos / Circul'RH 360)." });
-      return { ok: true, mode: emailMode(), sentTo: to };
-    } catch (e: any) {
-      return { ok: false, mode: emailMode(), error: String(e?.message ?? e).slice(0, 600) };
+      const r = await fetch(`https://api.scaleway.com/transactional-email/v1alpha1/regions/${region}/domains?project_id=${encodeURIComponent(project)}`, { headers: { "X-Auth-Token": key } });
+      const body = await r.text();
+      let domains: string[] | undefined;
+      try { domains = (JSON.parse(body).domains ?? []).map((d: any) => `${d.name}:${d.status}`); } catch { /* non-JSON */ }
+      out.listDomains = { status: r.status, domains: domains ?? body.slice(0, 200) };
+    } catch (e: any) { out.listDomains = { error: String(e?.message).slice(0, 200) }; }
+    // 2) TENTER un envoi si un destinataire est fourni.
+    if (to.includes("@")) {
+      try { await emailSender.send({ to, subject: "Test Rhéos — Transactional Email", text: "Test de configuration de l'envoi (Rhéos / Circul'RH 360)." }); out.send = { ok: true, sentTo: to }; }
+      catch (e: any) { out.send = { ok: false, error: String(e?.message ?? e).slice(0, 400) }; }
     }
+    return out;
   });
 
   // Volet 2 — Réinitialisation par la RH / le directeur de site (authentifié). L'autorité
