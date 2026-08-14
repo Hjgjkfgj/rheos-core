@@ -56,6 +56,14 @@ async function main() {
     scopes = [{ type: type as ScopeType, id: id || undefined }];
   }
 
+  // Garde claire : en mode persistant, une URL Postgres valide est indispensable.
+  if ((process.env.STORE ?? "memory") === "prisma" && !/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+    console.error("✗ DATABASE_URL manquant ou invalide : il doit commencer par postgresql://\n" +
+      "  → fournis l'URL admin de staging ENTRE GUILLEMETS SIMPLES (as-tu remplacé <TON_ADMIN_URL_STAGING> ?),\n" +
+      "    ex. STORE=prisma DATABASE_URL='postgresql://rheos-corp:…@163.172.140.191:10714/rheos?sslmode=require' …");
+    process.exit(1);
+  }
+
   const repo = await getRepository();
   const auth = new AuthService(repo);
   const acc = await auth.createAccount({ email, tenantId, roleNames, password, personId, scopes, mustChangePassword });
