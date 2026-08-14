@@ -3,17 +3,35 @@ import { build } from "../src/app.js";
 import { hrManager, tenantAdmin, setupHire } from "./helpers.js";
 import { signToken } from "../src/jwt.js";
 
-describe("Console de contrôle (front)", () => {
-  it("sert la page à la racine sans authentification", async () => {
+describe("Porte d'entrée unique (Lot UI-1)", () => {
+  it("la racine sert UNIQUEMENT la page de connexion (pas la console)", async () => {
     const app = build();
     const res = await app.inject({ method: "GET", url: "/" });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/html");
     expect(res.body).toContain("Rhéos");
+    expect(res.body).toContain("Se connecter");
+    // La console (et ses modules) ne sont PAS exposés à la racine.
+    expect(res.body).not.toContain("Gestion administrative");
+  });
+
+  it("la console est servie sur /console", async () => {
+    const app = build();
+    const res = await app.inject({ method: "GET", url: "/console" });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/html");
     expect(res.body).toContain("Gestion administrative");
   });
 
-  it("les routes API restent protégées", async () => {
+  it("le login renvoie une redirection par rôle (profil de gestion → console)", async () => {
+    const app = build();
+    const admin = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "admin@acme", password: "secret" } });
+    expect(admin.statusCode).toBe(200);
+    expect(admin.json().redirect).toBe("/console");
+    expect(admin.json().token).toBeTruthy();
+  });
+
+  it("les routes API restent protégées (deny by default)", async () => {
     const app = build();
     const res = await app.inject({ method: "GET", url: "/api/v1/notifications" });
     expect(res.statusCode).toBe(401);

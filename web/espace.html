@@ -23,7 +23,9 @@
   :focus-visible { outline:3px solid #2b8aa0; outline-offset:2px; border-radius:8px; }
 
   header.top { background:linear-gradient(135deg,var(--navy),#1c3a5e); color:#fff; padding:18px 18px 20px; padding-top:calc(18px + env(safe-area-inset-top,0px)); }
-  header.top .brand { font-size:13px; letter-spacing:.3px; opacity:.9; }
+  header.top .brand { font-size:13px; letter-spacing:.3px; opacity:.9; display:flex; align-items:center; justify-content:space-between; }
+  header.top .brand button { background:rgba(255,255,255,.14); color:#fff; border:0; border-radius:8px; padding:6px 11px; font-size:12px; font-weight:600; cursor:pointer; }
+  header.top .brand button:hover { background:rgba(255,255,255,.24); }
   header.top .hi { font-size:22px; font-weight:800; margin-top:4px; }
   header.top .sub { color:#c6dbec; font-size:13px; margin-top:2px; }
 
@@ -74,7 +76,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand">Rhéos · Mon espace</div>
+  <div class="brand"><span>Rhéos · Mon espace</span><button id="logoutBtn" type="button">Se déconnecter</button></div>
   <div class="hi" id="hi">Bienvenue 👋</div>
   <div class="sub" id="sub">Votre dossier, accessible à vous seul·e.</div>
 </header>
@@ -208,16 +210,22 @@ tabs.forEach((t, i) => {
   });
 });
 
-// --- Accès réel (staging/prod) : lien magique généré par le RH ---
-// L'URL /espace#token=<jwt> ouvre directement l'espace de CE collaborateur (rôle Employee,
-// scopé à sa personne). Remplace le bouton démo (qui, lui, s'appuie sur dev-token, désactivé en prod).
+// --- Accès collaborateur : session (login « / ») OU lien magique du RH ---
+// Deux sources de jeton : /espace#token=<jwt> (lien magique) ou la session localStorage
+// posée par la page de connexion. Sans jeton → retour à la porte d'entrée « / ».
+// Confort UX : la sécurité reste côté API (le token scope l'accès à cette personne).
+function logout(){ localStorage.removeItem("rheos_token"); localStorage.removeItem("rheos_user"); localStorage.removeItem("rheos_redirect"); location.replace("/"); }
+$("logoutBtn").addEventListener("click", logout);
 (function(){
   const m = location.hash.match(/token=([^&]+)/);
-  if (!m) return;
-  TOKEN = decodeURIComponent(m[1]);
-  try { history.replaceState(null, "", location.pathname); } catch(e){}
+  if (m) { TOKEN = decodeURIComponent(m[1]); try { history.replaceState(null, "", location.pathname); } catch(e){} }
+  else { TOKEN = localStorage.getItem("rheos_token"); }
+  if (!TOKEN) { location.replace("/"); return; }
+  // Persiste la session (le lien magique devient une session ; on ne se reconnecte plus par onglet).
+  localStorage.setItem("rheos_token", TOKEN);
+  localStorage.setItem("rheos_redirect", "/espace");
   const sc = $("startCard"); if (sc) sc.classList.add("hidden");
-  loadAll().catch(e => { if (sc) sc.classList.remove("hidden"); $("sub").textContent = "Accès invalide ou expiré : " + e.message; });
+  loadAll().catch(e => { $("sub").textContent = "Accès invalide ou expiré : " + e.message; setTimeout(logout, 1800); });
 })();
 
 // --- Démo : prépare un collaborateur et ouvre son espace ---

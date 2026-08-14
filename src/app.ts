@@ -111,10 +111,15 @@ export function build(repo: Repository = new MemoryRepository()) {
     }
   });
 
-  // Authentification (public)
+  // Authentification (public). Renvoie le jeton + la destination selon le rôle
+  // (collaborateur pur → espace PWA ; tout profil de gestion → console). La correspondance
+  // rôle→espace est calculée côté serveur (source unique de vérité).
   app.post("/api/v1/auth/login", async (req) => {
     const { email, password } = (req.body as any) ?? {};
-    return { token: authService.login(email, password) };
+    const token = authService.login(email, password);
+    const roles = verifyToken(token).roles ?? [];
+    const isCollaborator = roles.length > 0 && roles.every((r) => r === "Employee");
+    return { token, roles, redirect: isCollaborator ? "/espace" : "/console" };
   });
 
   // Jeton de démonstration — DEV UNIQUEMENT (désactivé en production).
@@ -124,9 +129,15 @@ export function build(repo: Repository = new MemoryRepository()) {
     return { token: signToken({ sub: b.sub ?? "demo", tenantId: b.tenantId, roles: b.roles ?? ["Employee"], personId: b.personId }) };
   });
 
-  // Espace collaborateur — PWA (page + manifest + service worker + icône, publics)
+  // Porte d'entrée unique : la racine sert UNIQUEMENT la page de connexion (Lot UI-1).
+  // La console et l'espace ne sont servis que sur leurs routes dédiées ; sans jeton en
+  // localStorage ils renvoient vers « / » (garde de confort ; la sécurité reste côté API).
   const web = (f: string) => new URL(`../web/${f}`, import.meta.url);
-  app.get("/espace", async (_req, reply) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web("espace.html"), "utf8"); });
+  const html = (reply: any, f: string) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web(f), "utf8"); };
+  app.get("/", async (_req, reply) => html(reply, "login.html"));
+  app.get("/console", async (_req, reply) => html(reply, "index.html"));
+  // Espace collaborateur — PWA (page + manifest + service worker + icône, publics)
+  app.get("/espace", async (_req, reply) => html(reply, "espace.html"));
   // Lot 17 — Politique de confidentialité + mentions légales (page publique).
   app.get("/confidentialite", async (_req, reply) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web("confidentialite.html"), "utf8"); });
   app.get("/manifest.webmanifest", async (_req, reply) => { reply.header("content-type", "application/manifest+json; charset=utf-8"); return readFileSync(web("manifest.webmanifest"), "utf8"); });
@@ -148,10 +159,6 @@ export function build(repo: Repository = new MemoryRepository()) {
     if (!db) reply.code(503);
     return { status: db ? "ok" : "degraded", store: process.env.STORE ?? "memory", db, ts: new Date().toISOString() };
   });
-
-  // Console de contrôle (front de démo, même origine → pas de CORS)
-  const INDEX = new URL("../web/index.html", import.meta.url);
-  app.get("/", async (_req, reply) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(INDEX, "utf8"); });
 
   // D1
   app.get("/api/v1/companies", async (req) => {
