@@ -1035,3 +1035,64 @@ model ChangeRequest {
   @@index([tenantId, personId])
   @@index([tenantId, status])
 }
+
+// ============ R1 — RÉFÉRENTIEL RÉGLEMENTAIRE (PLATEFORME, hors RLS) ============
+// ADR-020 : données à portée PLATEFORME (pas de tenantId), lecture seule pour les
+// tenants (l'app rheos_app n'a que SELECT dessus ; l'ingestion écrit via l'admin).
+
+enum RegulatoryRuleType {
+  MINIMUM_WAGE
+  CLASSIFICATION
+  PROBATION
+  NOTICE
+  LEAVE
+  BONUS
+}
+
+enum RegulatoryRuleStatus {
+  PROPOSED
+  VALIDATED
+  PUBLISHED
+  SUPERSEDED
+}
+
+// Source d'ingestion (KALI, LEGI…) — traçabilité de la récupération.
+model RegulatorySource {
+  id        String   @id @default(uuid())
+  name      String   // KALI, LEGI
+  url       String
+  fetchedAt DateTime @default(now())
+}
+
+// Texte consolidé versionné par IDCC (une nouvelle version à chaque changement de hash).
+model RegulatoryText {
+  id            String    @id @default(uuid())
+  idcc          String
+  kaliId        String    // identifiant KALICONT
+  title         String
+  version       Int
+  effectiveDate DateTime? // date d'effet / de publication du texte de base
+  content       String    // extrait consolidé (outline des sections/articles)
+  hash          String    // sha256 du contenu source complet (empreinte de version)
+  sourceUrl     String?
+  fetchedAt     DateTime  @default(now())
+
+  @@unique([idcc, version])
+  @@index([idcc])
+}
+
+// Règle paramétrée, dérivée d'un texte, validée humainement (PR en v1) puis publiée.
+model RegulatoryRule {
+  id            String               @id @default(uuid())
+  idcc          String
+  type          RegulatoryRuleType
+  params        Json                 // paramètres typés par `type`
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  sourceRef     String               // article + date avenant + lien
+  status        RegulatoryRuleStatus @default(PROPOSED)
+  validatedBy   String?
+  publishedAt   DateTime?
+
+  @@index([idcc, type])
+}

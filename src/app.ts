@@ -29,6 +29,7 @@ import { SensitiveService } from "./services-sensitive.js";
 import { ImportService } from "./services-import.js";
 import { PrivacyService } from "./services-privacy.js";
 import { getDocumentStore } from "./doc-store.js";
+import { RegulatoryService } from "./services-regulatory.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -53,6 +54,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   const sensitiveSvc = new SensitiveService(repo, bus);
   const importSvc = new ImportService(repo, bus, svc);
   const privacySvc = new PrivacyService(repo, bus, mvp);
+  const regulatorySvc = new RegulatoryService(repo, bus);
   // Archivage automatique du coffre au départ du collaborateur (le coffre n'est
   // jamais détruit ; le collaborateur garde l'accès à ses documents).
   bus.subscribe((e) => {
@@ -194,6 +196,9 @@ export function build(repo: Repository = new MemoryRepository()) {
     reply.header("content-disposition", 'attachment; filename="modele-import-collaborateurs.csv"');
     return readFileSync(new URL("../docs/modele-import-collaborateurs.csv", import.meta.url), "utf8");
   });
+
+  // R1 — Référentiel réglementaire (PLATEFORME, lecture pour tout tenant authentifié).
+  app.get("/api/v1/regulatory/agreements/:idcc", async (req) => regulatorySvc.getAgreement((req.params as any).idcc));
 
   // Lot 17 — Droits des personnes (RGPD). Droit d'accès (JSON ou PDF, journalisé) + anonymisation.
   app.get("/api/v1/persons/:personId/access-request", async (req, reply) => {

@@ -19,6 +19,15 @@ ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO rheos_app;
 
+-- 3bis) R1 — Référentiel réglementaire (ADR-020) : LECTURE SEULE pour l'app.
+--   L'écriture (ingestion KALI) passe par l'ADMIN ; un tenant ne peut jamais écrire
+--   dans le référentiel. Gardé par to_regclass (sans effet si les tables n'existent pas).
+DO $$ BEGIN
+  IF to_regclass('public."RegulatoryText"') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE ON "RegulatorySource", "RegulatoryText", "RegulatoryRule" FROM rheos_app;
+  END IF;
+END $$;
+
 -- 4) set_config('app.tenant_id', ...) est public (aucun GRANT requis).
 --    L'app pose SET LOCAL par transaction (RLS). Le rôle ne doit PAS bypasser la RLS
 --    (vérifié par ALTER ... NOBYPASSRLS ci-dessus et par le test automatisé).

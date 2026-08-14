@@ -15,6 +15,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
+  RegulatorySource, RegulatoryText, RegulatoryRule,
 } from "./types.js";
 
 // --- ÉCRITURE : domaine (string) → Prisma (DateTime) -------------------------
@@ -35,7 +36,7 @@ function norm<T extends Record<string, any>>(o: T): T {
 const DATE_ONLY = new Set([
   "startDate", "endDate", "birthDate", "validFrom", "validTo", "effectiveDate",
   "effectiveFrom", "effectiveTo", "asOfDate", "closureDate", "deadline", "dueDate",
-  "date", "periodStart", "periodEnd",
+  "date", "periodStart", "periodEnd", "effectiveDate",
 ]);
 function denorm(v: any, key?: string): any {
   if (v === null || v === undefined) return undefined;
@@ -215,4 +216,16 @@ export class PrismaRepository implements Repository {
   updateChangeRequest(t: string, id: string, patch: Partial<ChangeRequest>) { return this.tx(t, (px) => px.changeRequest.update({ where: { id }, data: norm(patch) })) as any; }
   listChangeRequestsByPerson(t: string, personId: string) { return this.tx(t, (px) => px.changeRequest.findMany({ where: { tenantId: t, personId } })) as any; }
   listChangeRequestsByTenant(t: string) { return this.tx(t, (px) => px.changeRequest.findMany({ where: { tenantId: t } })) as any; }
+
+  // R1 — Référentiel réglementaire : données PLATEFORME (pas de tenantId, donc pas de
+  // set_config app.tenant_id). glob() = transaction simple + dénormalisation (parité mémoire).
+  private glob(fn: (px: any) => Promise<any>): Promise<any> {
+    return this.prisma.$transaction(async (px: any) => denorm(await fn(px)));
+  }
+  createRegulatorySource(r: RegulatorySource) { return this.glob((px) => px.regulatorySource.create({ data: norm(r) })) as any; }
+  createRegulatoryText(r: RegulatoryText) { return this.glob((px) => px.regulatoryText.create({ data: norm(r) })) as any; }
+  getLatestRegulatoryText(idcc: string) { return this.glob((px) => px.regulatoryText.findFirst({ where: { idcc }, orderBy: { version: "desc" } })) as any; }
+  listRegulatoryTextVersions(idcc: string) { return this.glob((px) => px.regulatoryText.findMany({ where: { idcc }, orderBy: { version: "asc" } })) as any; }
+  createRegulatoryRule(r: RegulatoryRule) { return this.glob((px) => px.regulatoryRule.create({ data: norm(r) })) as any; }
+  listRegulatoryRules(idcc: string) { return this.glob((px) => px.regulatoryRule.findMany({ where: { idcc } })) as any; }
 }

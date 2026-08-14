@@ -8,6 +8,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
+  RegulatorySource, RegulatoryText, RegulatoryRule,
 } from "./types.js";
 
 export interface Repository {
@@ -156,6 +157,13 @@ export interface Repository {
   updateChangeRequest(tenantId: string, id: string, patch: Partial<ChangeRequest>): Promise<ChangeRequest | undefined>;
   listChangeRequestsByPerson(tenantId: string, personId: string): Promise<ChangeRequest[]>;
   listChangeRequestsByTenant(tenantId: string): Promise<ChangeRequest[]>;
+  // R1 — Référentiel réglementaire (PLATEFORME, hors RLS tenant — pas de tenantId)
+  createRegulatorySource(r: RegulatorySource): Promise<RegulatorySource>;
+  createRegulatoryText(r: RegulatoryText): Promise<RegulatoryText>;
+  getLatestRegulatoryText(idcc: string): Promise<RegulatoryText | undefined>;
+  listRegulatoryTextVersions(idcc: string): Promise<RegulatoryText[]>;
+  createRegulatoryRule(r: RegulatoryRule): Promise<RegulatoryRule>;
+  listRegulatoryRules(idcc: string): Promise<RegulatoryRule[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +206,9 @@ export class MemoryRepository implements Repository {
   bankAccounts: BankAccount[] = [];
   sensitiveIds: SensitiveIdentifier[] = [];
   auditLog: AuditLog[] = [];
+  regulatorySources: RegulatorySource[] = [];
+  regulatoryTexts: RegulatoryText[] = [];
+  regulatoryRules: RegulatoryRule[] = [];
   changeRequests: ChangeRequest[] = [];
 
   private t<T extends { tenantId: string }>(a: T[], tenantId: string) { return a.filter((x) => x.tenantId === tenantId); }
@@ -346,6 +357,13 @@ export class MemoryRepository implements Repository {
   async updateChangeRequest(t: string, id: string, patch: Partial<ChangeRequest>) { const c = this.id(this.changeRequests, t, id); if (c) Object.assign(c, patch); return c; }
   async listChangeRequestsByPerson(t: string, personId: string) { return this.t(this.changeRequests, t).filter((c) => c.personId === personId); }
   async listChangeRequestsByTenant(t: string) { return this.t(this.changeRequests, t); }
+  // R1 — Référentiel réglementaire (plateforme — pas de filtre tenant)
+  async createRegulatorySource(r: RegulatorySource) { this.regulatorySources.push(r); return r; }
+  async createRegulatoryText(r: RegulatoryText) { this.regulatoryTexts.push(r); return r; }
+  async getLatestRegulatoryText(idcc: string) { return this.regulatoryTexts.filter((t) => t.idcc === idcc).sort((a, b) => a.version - b.version).pop(); }
+  async listRegulatoryTextVersions(idcc: string) { return this.regulatoryTexts.filter((t) => t.idcc === idcc).sort((a, b) => a.version - b.version); }
+  async createRegulatoryRule(r: RegulatoryRule) { this.regulatoryRules.push(r); return r; }
+  async listRegulatoryRules(idcc: string) { return this.regulatoryRules.filter((r) => r.idcc === idcc); }
 
   // --- Sauvegarde / restauration (Lot 8) ---------------------------------
   // Les collections métier sont les propriétés tableau de ce dépôt. dump() en

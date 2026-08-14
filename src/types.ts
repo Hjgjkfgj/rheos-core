@@ -164,6 +164,21 @@ export interface AiAuditLog {
   query?: string; dataUsed: string[]; version: string; outcome: string; at: string;
 }
 
+// R1 — Référentiel réglementaire (PLATEFORME, hors RLS tenant ; lecture seule pour les
+// tenants). Voir ADR-020. Pas de tenantId : ces données sont partagées par tous les tenants.
+export type RegulatoryRuleType = "MINIMUM_WAGE" | "CLASSIFICATION" | "PROBATION" | "NOTICE" | "LEAVE" | "BONUS";
+export type RegulatoryRuleStatus = "PROPOSED" | "VALIDATED" | "PUBLISHED" | "SUPERSEDED";
+export interface RegulatorySource { id: string; name: string; url: string; fetchedAt: string; }
+export interface RegulatoryText {
+  id: string; idcc: string; kaliId: string; title: string; version: number;
+  effectiveDate?: string; content: string; hash: string; sourceUrl?: string; fetchedAt: string;
+}
+export interface RegulatoryRule {
+  id: string; idcc: string; type: RegulatoryRuleType; params: any;
+  effectiveFrom: string; effectiveTo?: string; sourceRef: string;
+  status: RegulatoryRuleStatus; validatedBy?: string; publishedAt?: string;
+}
+
 export class AppError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
     super(message);
