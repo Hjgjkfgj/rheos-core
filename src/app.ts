@@ -65,7 +65,10 @@ export function build(repo: Repository = new MemoryRepository()) {
     })();
   });
   const authService = new AuthService(repo);
-  authService.seedDemo();
+  // Comptes de démonstration en mémoire : UNIQUEMENT hors production (confort de dev local
+  // et tests). En conditions réelles (staging/prod, NODE_ENV=production) ils ne sont PAS
+  // seedés → connexion refusée. La démo prospects se réactive côté base via npm run demo:enable.
+  if (process.env.NODE_ENV !== "production") authService.seedDemo();
   const app = Fastify({ logger: false, bodyLimit: 12 * 1024 * 1024 }); // imports CSV volumineux (base64)
 
   app.decorateRequest("ctx", null);
@@ -132,12 +135,8 @@ export function build(repo: Repository = new MemoryRepository()) {
     return { token, roles, mustChangePassword, redirect: isCollaborator ? "/espace" : "/console" };
   });
 
-  // Jeton de démonstration — DEV UNIQUEMENT (désactivé en production).
-  app.post("/api/v1/auth/dev-token", async (req, reply) => {
-    if (process.env.NODE_ENV === "production") { reply.code(403); return { code: "forbidden", message: "Désactivé en production" }; }
-    const b = (req.body as any) ?? {};
-    return { token: signToken({ sub: b.sub ?? "demo", tenantId: b.tenantId, roles: b.roles ?? ["Employee"], personId: b.personId }) };
-  });
+  // (Lot UI-1c) Le jeton de démonstration /auth/dev-token (raccourci d'auto-login) a été
+  // retiré. L'accès collaborateur se fait par lien magique (POST /persons/:id/access-token).
 
   // Porte d'entrée unique : la racine sert UNIQUEMENT la page de connexion (Lot UI-1).
   // La console et l'espace ne sont servis que sur leurs routes dédiées ; sans jeton en

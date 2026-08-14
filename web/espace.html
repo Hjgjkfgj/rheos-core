@@ -82,12 +82,6 @@
 </header>
 
 <main>
-  <!-- Écran de démarrage (démo) -->
-  <section class="card" id="startCard">
-    <h2>👋 Bienvenue dans votre espace</h2>
-    <p class="muted">Démonstration : on prépare un collaborateur d'exemple et on ouvre son espace personnel (lecture seule, données limitées à lui-même).</p>
-    <button id="startBtn">Ouvrir mon espace (démo)</button>
-  </section>
 
   <!-- Onglet : Mon arrivée -->
   <section class="panel" id="tab-home" role="tabpanel" aria-labelledby="nav-home">
@@ -224,30 +218,8 @@ $("logoutBtn").addEventListener("click", logout);
   // Persiste la session (le lien magique devient une session ; on ne se reconnecte plus par onglet).
   localStorage.setItem("rheos_token", TOKEN);
   localStorage.setItem("rheos_redirect", "/espace");
-  const sc = $("startCard"); if (sc) sc.classList.add("hidden");
   loadAll().catch(e => { $("sub").textContent = "Accès invalide ou expiré : " + e.message; setTimeout(logout, 1800); });
 })();
-
-// --- Démo : prépare un collaborateur et ouvre son espace ---
-$("startBtn").addEventListener("click", startDemo);
-async function startDemo(){
-  const btn = $("startBtn"); btn.disabled = true; $("sub").textContent = "Préparation…";
-  try {
-    const admin = (await api("/auth/login","POST",{ email:"admin@acme", password:"secret" }, null)).token;
-    const co = await api("/companies","POST",{ legalName:"ACME SAS", siren:"552100554" }, undefined, admin);
-    const est = await api(`/companies/${co.id}/establishments`,"POST",{ siret:"55210055400013", name:"Établissement Marseille", idcc:"2216" }, undefined, admin);
-    const pos = await api(`/companies/${co.id}/positions`,"POST",{ title:"Conseiller", coefficient:110 }, undefined, admin);
-    const hire = await api("/employments","POST",{ person:{ lastName:"Dupont", firstName:"Marie" }, legalEntityId:co.id, administrativeEstablishmentId:est.id, positionId:pos.id, startDate:"2026-09-01", contractType:"CDI", grossMonthly:2000, workingTime:35 }, undefined, admin);
-    // Un document de contrat déposé, mis EN ATTENTE de signature du collaborateur
-    const doc = await api(`/persons/${hire.employment.personId}/documents`,"POST",{ type:"CONTRACT", label:"Contrat de travail CDI", content:"contrat-marie" }, undefined, admin);
-    await api(`/documents/${doc.id}/signature/request`,"POST",{ signers:["marie"] }, undefined, admin);
-    await api(`/employments/${hire.employment.id}/shifts`,"POST",{ date:"2026-09-07", startTime:"09:00", endTime:"17:00" }, undefined, admin);
-    // Jeton du collaborateur (démo) rattaché à sa personne
-    TOKEN = (await api("/auth/dev-token","POST",{ tenantId:"ACME", personId:hire.employment.personId, roles:["Employee"], sub:"me" }, null)).token;
-    $("startCard").classList.add("hidden");
-    await loadAll();
-  } catch(e){ $("sub").textContent = "Erreur démo : " + e.message; btn.disabled = false; }
-}
 
 async function loadAll(){
   const me = await api("/me");
