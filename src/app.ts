@@ -64,7 +64,7 @@ export function build(repo: Repository = new MemoryRepository()) {
       if (emp) await mvp.archivePersonDocuments(e.tenantId, emp.personId, e.actorUserId);
     })();
   });
-  const authService = new AuthService();
+  const authService = new AuthService(repo);
   authService.seedDemo();
   const app = Fastify({ logger: false, bodyLimit: 12 * 1024 * 1024 }); // imports CSV volumineux (base64)
 
@@ -105,6 +105,15 @@ export function build(repo: Repository = new MemoryRepository()) {
     }
     try {
       const p = verifyToken(authz.slice(7));
+      // Invalidation de session : un jeton de compte persistant porte `tv` (tokenVersion).
+      // Après un reset de mot de passe, le compte incrémente sa tokenVersion → tous les
+      // anciens jetons deviennent caducs. (Jetons de démo/dev sans `tv` : non concernés.)
+      if (typeof p.tv === "number") {
+        const acc = await repo.getAuthAccountById(p.sub).catch(() => undefined);
+        if (!acc || acc.tokenVersion !== p.tv) {
+          reply.code(401).send({ code: "session_revoked", message: "Session expirée, veuillez vous reconnecter." }); return;
+        }
+      }
       (req as any).ctx = { tenantId: p.tenantId, userId: p.sub, roles: p.roles ?? [], personId: p.personId, scopes: p.scopes } as Ctx;
     } catch (e: any) {
       reply.code(401).send({ code: "unauthorized", message: `Jeton invalide : ${e.message}` });
@@ -116,10 +125,11 @@ export function build(repo: Repository = new MemoryRepository()) {
   // rôle→espace est calculée côté serveur (source unique de vérité).
   app.post("/api/v1/auth/login", async (req) => {
     const { email, password } = (req.body as any) ?? {};
-    const token = authService.login(email, password);
+    const { token, mustChangePassword } = await authService.login(email, password);
     const roles = verifyToken(token).roles ?? [];
     const isCollaborator = roles.length > 0 && roles.every((r) => r === "Employee");
-    return { token, roles, redirect: isCollaborator ? "/espace" : "/console" };
+    // mustChangePassword (mot de passe temporaire) → le front doit forcer le changement.
+    return { token, roles, mustChangePassword, redirect: isCollaborator ? "/espace" : "/console" };
   });
 
   // Jeton de démonstration — DEV UNIQUEMENT (désactivé en production).

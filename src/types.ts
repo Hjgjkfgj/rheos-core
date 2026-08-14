@@ -179,6 +179,25 @@ export interface RegulatoryRule {
   status: RegulatoryRuleStatus; validatedBy?: string; publishedAt?: string;
 }
 
+// Identité / authentification (Lot UI-1b — fondation). Table PLATEFORME (hors RLS
+// tenant) : l'authentification résout un email GLOBAL → tenant + rôles + périmètre,
+// avant tout contexte tenant. `tokenVersion` permet d'invalider toutes les sessions
+// d'un compte (incrément au reset). `mustChangePassword` force le changement (mot de
+// passe temporaire). Le hash est scrypt (comme le reste de l'auth).
+export interface AuthAccount {
+  id: string;
+  email: string;
+  tenantId: string;
+  personId?: string;
+  passwordHash: string;
+  roleNames: string[];
+  scopes?: Scope[];
+  tokenVersion: number;
+  mustChangePassword: boolean;
+  disabled: boolean;
+  createdAt: string;
+}
+
 export class AppError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
     super(message);

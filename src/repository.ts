@@ -8,7 +8,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
-  RegulatorySource, RegulatoryText, RegulatoryRule,
+  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount,
 } from "./types.js";
 
 export interface Repository {
@@ -164,6 +164,12 @@ export interface Repository {
   listRegulatoryTextVersions(idcc: string): Promise<RegulatoryText[]>;
   createRegulatoryRule(r: RegulatoryRule): Promise<RegulatoryRule>;
   listRegulatoryRules(idcc: string): Promise<RegulatoryRule[]>;
+
+  // Identité / authentification (PLATEFORME, hors RLS tenant — email global).
+  getAuthAccountByEmail(email: string): Promise<AuthAccount | undefined>;
+  getAuthAccountById(id: string): Promise<AuthAccount | undefined>;
+  createAuthAccount(a: AuthAccount): Promise<AuthAccount>;
+  updateAuthAccount(id: string, patch: Partial<AuthAccount>): Promise<AuthAccount | undefined>;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +216,7 @@ export class MemoryRepository implements Repository {
   regulatoryTexts: RegulatoryText[] = [];
   regulatoryRules: RegulatoryRule[] = [];
   changeRequests: ChangeRequest[] = [];
+  authAccounts: AuthAccount[] = [];
 
   private t<T extends { tenantId: string }>(a: T[], tenantId: string) { return a.filter((x) => x.tenantId === tenantId); }
   private id<T extends { id: string; tenantId: string }>(a: T[], tenantId: string, id: string) { return a.find((x) => x.id === id && x.tenantId === tenantId); }
@@ -364,6 +371,12 @@ export class MemoryRepository implements Repository {
   async listRegulatoryTextVersions(idcc: string) { return this.regulatoryTexts.filter((t) => t.idcc === idcc).sort((a, b) => a.version - b.version); }
   async createRegulatoryRule(r: RegulatoryRule) { this.regulatoryRules.push(r); return r; }
   async listRegulatoryRules(idcc: string) { return this.regulatoryRules.filter((r) => r.idcc === idcc); }
+
+  // Identité / authentification (email global, hors périmètre tenant).
+  async getAuthAccountByEmail(email: string) { return this.authAccounts.find((a) => a.email === email); }
+  async getAuthAccountById(id: string) { return this.authAccounts.find((a) => a.id === id); }
+  async createAuthAccount(a: AuthAccount) { this.authAccounts.push(a); return a; }
+  async updateAuthAccount(id: string, patch: Partial<AuthAccount>) { const a = this.authAccounts.find((x) => x.id === id); if (a) Object.assign(a, patch); return a; }
 
   // --- Sauvegarde / restauration (Lot 8) ---------------------------------
   // Les collections métier sont les propriétés tableau de ce dépôt. dump() en
