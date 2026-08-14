@@ -168,6 +168,7 @@ export interface Repository {
   // Identité / authentification (PLATEFORME, hors RLS tenant — email global).
   getAuthAccountByEmail(email: string): Promise<AuthAccount | undefined>;
   getAuthAccountById(id: string): Promise<AuthAccount | undefined>;
+  getAuthAccountByPersonId(personId: string): Promise<AuthAccount | undefined>;
   createAuthAccount(a: AuthAccount): Promise<AuthAccount>;
   updateAuthAccount(id: string, patch: Partial<AuthAccount>): Promise<AuthAccount | undefined>;
 
@@ -382,6 +383,7 @@ export class MemoryRepository implements Repository {
   // Identité / authentification (email global, hors périmètre tenant).
   async getAuthAccountByEmail(email: string) { return this.authAccounts.find((a) => a.email === email); }
   async getAuthAccountById(id: string) { return this.authAccounts.find((a) => a.id === id); }
+  async getAuthAccountByPersonId(personId: string) { return this.authAccounts.find((a) => a.personId === personId); }
   async createAuthAccount(a: AuthAccount) { this.authAccounts.push(a); return a; }
   async updateAuthAccount(id: string, patch: Partial<AuthAccount>) { const a = this.authAccounts.find((x) => x.id === id); if (a) Object.assign(a, patch); return a; }
   async createPasswordResetToken(t: PasswordResetToken) { this.passwordResetTokens.push(t); return t; }

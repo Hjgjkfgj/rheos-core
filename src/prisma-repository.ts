@@ -232,6 +232,7 @@ export class PrismaRepository implements Repository {
   // Identité / authentification — table PLATEFORME (hors RLS) : glob() sans contexte tenant.
   getAuthAccountByEmail(email: string) { return this.glob((px) => px.authAccount.findUnique({ where: { email } })) as any; }
   getAuthAccountById(id: string) { return this.glob((px) => px.authAccount.findUnique({ where: { id } })) as any; }
+  getAuthAccountByPersonId(personId: string) { return this.glob((px) => px.authAccount.findFirst({ where: { personId } })) as any; }
   createAuthAccount(a: AuthAccount) { return this.glob((px) => px.authAccount.create({ data: norm(a as any) })) as any; }
   updateAuthAccount(id: string, patch: Partial<AuthAccount>) { return this.glob((px) => px.authAccount.update({ where: { id }, data: norm(patch as any) })) as any; }
   createPasswordResetToken(t: PasswordResetToken) { return this.glob((px) => px.passwordResetToken.create({ data: norm(t as any) })) as any; }

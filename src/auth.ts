@@ -30,19 +30,19 @@ const SPEC_D1_D2: Record<string, string[]> = {
     "amendment.create", "assignment.write", "document.read", "document.write",
     "document.delete", "document.legal_hold",
     "person.sensitive.write", "bank_account.write", "change_request.validate",
-    "registry.read", "registry.export", "employee360.read", "obligation.manage",
+    "registry.read", "registry.export", "employee360.read", "obligation.manage", "account.reset",
   ],
   HrOfficer: [
     "company.read", "establishment.read", "organization.read",
     "person.read", "person.write", "employment.read", "employment.write",
     "contract.read", "contract.create", "assignment.write",
-    "document.read", "document.write", "employee360.read",
+    "document.read", "document.write", "employee360.read", "account.reset",
   ],
   Signatory: [
     "company.read", "contract.read", "contract.sign", "amendment.sign",
-    "employment.departure", "document.read", "employee360.read",
+    "employment.departure", "document.read", "employee360.read", "account.reset",
   ],
-  Manager: ["employee360.read", "assignment.read", "document.read"],
+  Manager: ["employee360.read", "assignment.read", "document.read", "account.reset"],
   Employee: ["person.read", "employee360.read", "document.read", "document.sign.self", "bank_account.read"],
   PayrollOfficer: [
     "bank_account.read", "employment.read", "contract.read",
@@ -94,6 +94,18 @@ export const DEFAULT_SCOPE_TYPE: Record<string, ScopeType> = {
 // =============================================================================
 // 2. RBAC — permission atomique (inchangé, deny by default)
 // =============================================================================
+// Hiérarchie de rôles (Lot UI-1b Volet 2) : « on ne réinitialise pas un compte d'un rôle
+// SUPÉRIEUR au sien ». Rang = niveau d'autorité ; un acteur ne peut agir que sur un rang ≤ le sien.
+const ROLE_RANK: Record<string, number> = {
+  PlatformAdmin: 5, TenantAdmin: 4,
+  Signatory: 3, HrManager: 3, PayrollOfficer: 3, // niveau entité (DG / DRH / paie)
+  HrOfficer: 2, Manager: 2,                       // niveau établissement (RH site / dir. site)
+  ExternalAuditor: 1, Employee: 1,
+};
+export function roleRank(roles: string[]): number {
+  return roles.reduce((m, r) => Math.max(m, ROLE_RANK[r] ?? 1), 0);
+}
+
 export function permissionsOf(roles: string[]): Set<string> {
   const s = new Set<string>();
   for (const r of roles) for (const p of ROLE_PERMS[r] ?? []) s.add(p);

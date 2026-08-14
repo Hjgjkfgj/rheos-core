@@ -99,7 +99,7 @@ const MENU=[
     ["Éditer une embauche","hire"], ["Signer le contrat","signContract"],
     ["Créer un avenant","amendment"], ["Faire une sortie","departure"],
     ["Dossier collaborateur (360)","dossier"], ["Registre du personnel","registry"],
-    ["Lien d'accès collaborateur","accessLink"] ]},
+    ["Lien d'accès collaborateur","accessLink"], ["Réinitialiser un mot de passe","resetPw"] ]},
   { t:"⏱️ Temps & Activité", items:[
     ["Planifier un créneau","shift"], ["Pointer","clock"], ["Synthèse des temps","timesummary"],
     ["Demander un congé","leaveReq"], ["Valider un congé","leaveApprove"] ]},
@@ -488,6 +488,33 @@ VIEWS.accessLink = function(){ need();
     <div id="accz"></div>`);
 };
 function dlAccessRequest(fmt){ authDownload(`/persons/${S.personId}/access-request?format=${fmt}`, `dossier-collaborateur.${fmt}`); }
+
+/* ---------- Réinitialiser le mot de passe d'un compte (Volet 2, RH / dir. site) ---------- */
+VIEWS.resetPw = function(){ need();
+  panel("Réinitialiser un mot de passe", `<p class="desc">Dépannage RH. L'accès est contrôlé côté serveur : <b>votre périmètre</b> (établissement / entité) et votre <b>niveau hiérarchique</b> — vous ne pouvez pas réinitialiser un compte hors de votre périmètre ni d'un rôle supérieur au vôtre.</p>
+    <div class="row">${F([{id:"rpEmail",label:"Email du compte à réinitialiser",ph:"prenom.nom@entreprise.fr"}])}</div>
+    <div class="row">${F([{id:"rpMode",label:"Méthode",type:"select",options:["Envoyer un lien email au collaborateur","Générer un mot de passe temporaire (affiché ici une fois)"]}])}</div>
+    <button class="act" onclick="doResetPw()">Réinitialiser</button>
+    <div id="rpz"></div>`);
+};
+async function doResetPw(){
+  try{
+    const email=$("rpEmail").value.trim(); if(!email){ toast("Email requis",true); return; }
+    const mode=$("rpMode").value.startsWith("Générer")?"temp":"email";
+    const r=await api("/accounts/reset","POST",{email,mode});
+    if(r.mode==="temp"){
+      $("rpz").innerHTML=`<div class="card" style="border-color:#f0dca8;background:#fff7e6">
+        <h2>Mot de passe temporaire</h2>
+        <p class="muted">À transmettre <b>de vive voix ou de la main à la main</b> au collaborateur. Il ne sera <b>plus jamais affiché</b> et n'a pas été envoyé par email. Changement obligatoire à la première connexion.</p>
+        <p style="font-size:22px;font-weight:800;letter-spacing:1px;font-family:ui-monospace,Menlo,monospace;color:var(--navy)">${esc(r.tempPassword)}</p>
+        <button class="chip" onclick="navigator.clipboard&&navigator.clipboard.writeText('${r.tempPassword}');toast('Copié ✓')">Copier</button></div>`;
+    } else {
+      $("rpz").innerHTML=`<div class="card"><h2>Lien envoyé ✓</h2><p class="muted">Un email contenant un lien de réinitialisation (valable 60 min, usage unique) a été envoyé à <b>${esc(r.email)}</b>. Le collaborateur a aussi été informé de l'opération.</p></div>`;
+    }
+    toast("Réinitialisation effectuée ✓");
+  }catch(e){ toast(e.message,true); $("rpz").innerHTML=`<div class="banner">${esc(e.message)}</div>`; }
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* ---------- Convention officielle (référentiel réglementaire KALI) ---------- */
 VIEWS.regAgreement = function(){ need(); panel("Convention officielle (référentiel KALI)", `<p class="desc">Texte consolidé officiel d'une convention collective (source <b>KALI/Légifrance</b>), versionné et daté.</p>

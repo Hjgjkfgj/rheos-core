@@ -169,6 +169,19 @@ export function build(repo: Repository = new MemoryRepository()) {
     return { ok: true, message: "Mot de passe modifié. Vous pouvez vous connecter." };
   });
 
+  // Volet 2 — Réinitialisation par la RH / le directeur de site (authentifié). L'autorité
+  // est côté API : permission account.reset + périmètre (ABAC) + hiérarchie de rôles.
+  // Cible par accountId | personId | email ; mode "email" (lien) ou "temp" (mdp temporaire
+  // affiché UNE fois, jamais loggé). Chaque reset est audité + informe le collaborateur.
+  app.post("/api/v1/accounts/reset", async (req) => {
+    const c = ctx(req);
+    assertCan(c, "account.reset");
+    const b = (req.body as any) ?? {};
+    const proto = (req.headers["x-forwarded-proto"] as string || "").split(",")[0].trim() || (isProd ? "https" : "http");
+    const origin = `${proto}://${req.headers["host"]}`;
+    return resetSvc.rhReset(c, { accountId: b.accountId, personId: b.personId, email: b.email, mode: b.mode === "temp" ? "temp" : "email", origin });
+  });
+
   // (Lot UI-1c) Le jeton de démonstration /auth/dev-token (raccourci d'auto-login) a été
   // retiré. L'accès collaborateur se fait par lien magique (POST /persons/:id/access-token).
 
