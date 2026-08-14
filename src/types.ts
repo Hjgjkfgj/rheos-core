@@ -198,6 +198,18 @@ export interface AuthAccount {
   createdAt: string;
 }
 
+// Jeton de réinitialisation de mot de passe (Lot UI-1b). Table PLATEFORME (hors RLS) :
+// consultée par HASH, avant toute authentification. Le token en clair n'est JAMAIS stocké
+// (seulement son SHA-256) ; usage unique (usedAt) ; expiration (expiresAt, 60 min).
+export interface PasswordResetToken {
+  id: string;
+  accountId: string;
+  tokenHash: string;
+  expiresAt: string;
+  usedAt?: string;
+  createdAt: string;
+}
+
 export class AppError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
     super(message);

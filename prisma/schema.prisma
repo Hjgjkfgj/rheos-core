@@ -1117,3 +1117,17 @@ model AuthAccount {
 
   @@index([tenantId])
 }
+
+// Jeton de réinitialisation de mot de passe. Table PLATEFORME (hors RLS) : consultée
+// par hash avant authentification. On ne stocke que le SHA-256 du token (jamais le clair) ;
+// usage unique (usedAt) ; expiration à 60 min (expiresAt).
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  accountId String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([accountId])
+}

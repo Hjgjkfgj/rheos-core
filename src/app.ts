@@ -31,6 +31,8 @@ import { PrivacyService } from "./services-privacy.js";
 import { getDocumentStore } from "./doc-store.js";
 import { RegulatoryService } from "./services-regulatory.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
+import { getEmailSender } from "./email.js";
+import { PasswordResetService } from "./services-reset.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
 
@@ -64,6 +66,8 @@ export function build(repo: Repository = new MemoryRepository()) {
       if (emp) await mvp.archivePersonDocuments(e.tenantId, emp.personId, e.actorUserId);
     })();
   });
+  const emailSender = getEmailSender(); // Scaleway TEM si clé présente, sinon mode « console » (logs)
+  const resetSvc = new PasswordResetService(repo, emailSender);
   const authService = new AuthService(repo);
   // Comptes de démonstration en mémoire : UNIQUEMENT hors production (confort de dev local
   // et tests). En conditions réelles (staging/prod, NODE_ENV=production) ils ne sont PAS
@@ -76,6 +80,9 @@ export function build(repo: Repository = new MemoryRepository()) {
   // Durcissement : en-têtes de sécurité sur toutes les réponses + rate limiting.
   const authLimiter = new RateLimiter(60_000, 20);
   const apiLimiter = new RateLimiter(60_000, 300);
+  // Reset de mot de passe (Lot UI-1b) : strict, par IP ET par email, sur 1 heure.
+  const resetIpLimiter = new RateLimiter(3_600_000, 15);
+  const resetEmailLimiter = new RateLimiter(3_600_000, 5);
   const isProd = process.env.NODE_ENV === "production";
   app.addHook("onRequest", async (req, reply) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
@@ -135,6 +142,33 @@ export function build(repo: Repository = new MemoryRepository()) {
     return { token, roles, mustChangePassword, redirect: isCollaborator ? "/espace" : "/console" };
   });
 
+  // Volet 1 (Lot UI-1b) — Mot de passe oublié : demande. Réponse TOUJOURS identique
+  // (anti-énumération). Rate-limiting strict par IP ET par email (fenêtre 1 h).
+  const RESET_GENERIC = { message: "Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé." };
+  app.post("/api/v1/auth/forgot-password", async (req, reply) => {
+    const email = String((req.body as any)?.email ?? "").toLowerCase().trim();
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    if (!resetIpLimiter.hit(`reset-ip:${ip}`, Date.now()).allowed) {
+      reply.code(429); return { code: "rate_limited", message: "Trop de demandes, réessayez plus tard." };
+    }
+    // Email plausible et sous quota → on déclenche l'envoi EN ARRIÈRE-PLAN (fire-and-forget) :
+    // le temps de réponse est le même que le compte existe ou non (anti-timing), et l'envoi
+    // ne bloque pas. Sinon on ne fait rien. Dans tous les cas, la réponse est identique.
+    if (email.includes("@") && resetEmailLimiter.hit(`reset-email:${email}`, Date.now()).allowed) {
+      const proto = (req.headers["x-forwarded-proto"] as string || "").split(",")[0].trim() || (isProd ? "https" : "http");
+      const origin = `${proto}://${req.headers["host"]}`;
+      void resetSvc.requestReset(email, origin).catch(() => {});
+    }
+    return RESET_GENERIC;
+  });
+
+  // Volet 1 — finalisation : nouveau mot de passe depuis le lien à usage unique.
+  app.post("/api/v1/auth/reset-password", async (req) => {
+    const b = (req.body as any) ?? {};
+    await resetSvc.completeReset(String(b.token ?? ""), String(b.password ?? ""));
+    return { ok: true, message: "Mot de passe modifié. Vous pouvez vous connecter." };
+  });
+
   // (Lot UI-1c) Le jeton de démonstration /auth/dev-token (raccourci d'auto-login) a été
   // retiré. L'accès collaborateur se fait par lien magique (POST /persons/:id/access-token).
 
@@ -145,6 +179,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   const html = (reply: any, f: string) => { reply.header("content-type", "text/html; charset=utf-8"); return readFileSync(web(f), "utf8"); };
   app.get("/", async (_req, reply) => html(reply, "login.html"));
   app.get("/console", async (_req, reply) => html(reply, "index.html"));
+  app.get("/reset", async (_req, reply) => html(reply, "reset.html")); // page de nouveau mot de passe (lien email)
   // Espace collaborateur — PWA (page + manifest + service worker + icône, publics)
   app.get("/espace", async (_req, reply) => html(reply, "espace.html"));
   // Lot 17 — Politique de confidentialité + mentions légales (page publique).

@@ -32,8 +32,12 @@
   .foot{ margin-top:20px; text-align:center; }
   .foot a{ color:var(--teal); font-size:13px; cursor:pointer; text-decoration:none; }
   .foot a:hover{ text-decoration:underline; }
-  .hint{ display:none; margin-top:12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.5; }
-  .hint.show{ display:block; }
+  .forgot{ display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .forgot.show{ display:block; }
+  .forgot .sub{ margin:10px 0 0; text-align:center; color:var(--muted); font-size:12px; }
+  .note{ display:none; margin-top:12px; padding:10px 12px; border-radius:9px; font-size:13px;
+    background:#eaf1f6; border:1px solid #cfe0ee; color:var(--navy); }
+  .note.show{ display:block; }
   .legal{ margin-top:22px; text-align:center; font-size:11px; color:#9aa6b2; }
   .legal a{ color:#9aa6b2; }
 </style>
@@ -56,9 +60,13 @@
       <div class="err" id="err"></div>
     </form>
     <div class="foot"><a id="forgot">Mot de passe oublié ?</a></div>
-    <div class="hint" id="hint">Pour réinitialiser votre mot de passe, contactez l'administrateur
-      de votre entreprise. Aucune inscription n'est possible en ligne : les comptes sont créés par
-      votre service RH.</div>
+    <form id="forgotForm" class="forgot" autocomplete="on">
+      <label for="forgotEmail">Votre adresse email</label>
+      <input id="forgotEmail" name="email" type="email" autocomplete="username" placeholder="prenom.nom@entreprise.fr" />
+      <button id="forgotBtn" type="submit">Envoyer le lien de réinitialisation</button>
+      <div class="note" id="forgotMsg"></div>
+      <p class="sub">Aucune inscription en ligne : les comptes sont créés par votre service RH.</p>
+    </form>
     <div class="legal"><a href="/confidentialite">Confidentialité &amp; mentions légales</a></div>
   </div>
 
@@ -72,7 +80,26 @@ function clearErr(){ err.classList.remove("show"); }
 const known = localStorage.getItem("rheos_redirect");
 if (localStorage.getItem("rheos_token") && known) location.replace(known);
 
-$("forgot").addEventListener("click", () => $("hint").classList.toggle("show"));
+// « Mot de passe oublié ? » → ouvre le formulaire de demande.
+$("forgot").addEventListener("click", () => {
+  const f = $("forgotForm"); f.classList.toggle("show");
+  if (f.classList.contains("show")) { const pre = $("email").value.trim(); if (pre) $("forgotEmail").value = pre; $("forgotEmail").focus(); }
+});
+// Demande de réinitialisation : réponse TOUJOURS identique (anti-énumération).
+$("forgotForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("forgotEmail").value.trim();
+  const note = $("forgotMsg"), fb = $("forgotBtn");
+  if (!email) { return; }
+  fb.disabled = true; fb.textContent = "Envoi…";
+  try {
+    await fetch("/api/v1/auth/forgot-password", { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ email }) });
+  } catch {}
+  // Message unique, quel que soit le résultat (ne révèle jamais si le compte existe).
+  note.textContent = "Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé.";
+  note.classList.add("show");
+  fb.disabled = false; fb.textContent = "Renvoyer le lien";
+});
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();

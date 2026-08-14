@@ -15,7 +15,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
-  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount,
+  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount, PasswordResetToken,
 } from "./types.js";
 
 // --- ÉCRITURE : domaine (string) → Prisma (DateTime) -------------------------
@@ -234,4 +234,8 @@ export class PrismaRepository implements Repository {
   getAuthAccountById(id: string) { return this.glob((px) => px.authAccount.findUnique({ where: { id } })) as any; }
   createAuthAccount(a: AuthAccount) { return this.glob((px) => px.authAccount.create({ data: norm(a as any) })) as any; }
   updateAuthAccount(id: string, patch: Partial<AuthAccount>) { return this.glob((px) => px.authAccount.update({ where: { id }, data: norm(patch as any) })) as any; }
+  createPasswordResetToken(t: PasswordResetToken) { return this.glob((px) => px.passwordResetToken.create({ data: norm(t as any) })) as any; }
+  getPasswordResetTokenByHash(hash: string) { return this.glob((px) => px.passwordResetToken.findUnique({ where: { tokenHash: hash } })) as any; }
+  markPasswordResetTokenUsed(id: string, usedAt: string) { return this.glob((px) => px.passwordResetToken.update({ where: { id }, data: { usedAt: new Date(usedAt) } })).then(() => {}); }
+  invalidateAccountResetTokens(accountId: string) { return this.glob((px) => px.passwordResetToken.updateMany({ where: { accountId, usedAt: null }, data: { usedAt: new Date() } })).then(() => {}); }
 }

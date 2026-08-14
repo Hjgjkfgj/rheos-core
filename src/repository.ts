@@ -8,7 +8,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
-  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount,
+  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount, PasswordResetToken,
 } from "./types.js";
 
 export interface Repository {
@@ -170,6 +170,12 @@ export interface Repository {
   getAuthAccountById(id: string): Promise<AuthAccount | undefined>;
   createAuthAccount(a: AuthAccount): Promise<AuthAccount>;
   updateAuthAccount(id: string, patch: Partial<AuthAccount>): Promise<AuthAccount | undefined>;
+
+  // Réinitialisation de mot de passe (jetons hachés, hors RLS — lookup par hash).
+  createPasswordResetToken(t: PasswordResetToken): Promise<PasswordResetToken>;
+  getPasswordResetTokenByHash(hash: string): Promise<PasswordResetToken | undefined>;
+  markPasswordResetTokenUsed(id: string, usedAt: string): Promise<void>;
+  invalidateAccountResetTokens(accountId: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +223,7 @@ export class MemoryRepository implements Repository {
   regulatoryRules: RegulatoryRule[] = [];
   changeRequests: ChangeRequest[] = [];
   authAccounts: AuthAccount[] = [];
+  passwordResetTokens: PasswordResetToken[] = [];
 
   private t<T extends { tenantId: string }>(a: T[], tenantId: string) { return a.filter((x) => x.tenantId === tenantId); }
   private id<T extends { id: string; tenantId: string }>(a: T[], tenantId: string, id: string) { return a.find((x) => x.id === id && x.tenantId === tenantId); }
@@ -377,6 +384,10 @@ export class MemoryRepository implements Repository {
   async getAuthAccountById(id: string) { return this.authAccounts.find((a) => a.id === id); }
   async createAuthAccount(a: AuthAccount) { this.authAccounts.push(a); return a; }
   async updateAuthAccount(id: string, patch: Partial<AuthAccount>) { const a = this.authAccounts.find((x) => x.id === id); if (a) Object.assign(a, patch); return a; }
+  async createPasswordResetToken(t: PasswordResetToken) { this.passwordResetTokens.push(t); return t; }
+  async getPasswordResetTokenByHash(hash: string) { return this.passwordResetTokens.find((x) => x.tokenHash === hash); }
+  async markPasswordResetTokenUsed(id: string, usedAt: string) { const t = this.passwordResetTokens.find((x) => x.id === id); if (t) t.usedAt = usedAt; }
+  async invalidateAccountResetTokens(accountId: string) { const now = new Date().toISOString(); for (const t of this.passwordResetTokens) if (t.accountId === accountId && !t.usedAt) t.usedAt = now; }
 
   // --- Sauvegarde / restauration (Lot 8) ---------------------------------
   // Les collections métier sont les propriétés tableau de ce dépôt. dump() en

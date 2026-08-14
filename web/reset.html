@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Rhéos — Nouveau mot de passe</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<style>
+  :root{ --navy:#11223b; --navy2:#0d1a2e; --teal:#1f7a8c; --teal2:#2b95a8; --line:#e2e7ee; --ink:#1c2530; --muted:#6b7785; --crit:#b00020; --ok:#1b7f3b; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  body{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    background:radial-gradient(1200px 600px at 20% -10%, #1b3357 0%, var(--navy) 45%, var(--navy2) 100%); }
+  .card{ width:100%; max-width:400px; background:#fff; border-radius:16px; padding:34px 32px 28px; box-shadow:0 24px 60px rgba(4,12,26,.45); }
+  .brand{ text-align:center; margin-bottom:22px; }
+  .brand .logo{ width:48px; height:48px; margin:0 auto 10px; display:block; }
+  .brand b{ display:block; color:var(--navy); font-size:26px; letter-spacing:.5px; }
+  .brand span{ display:block; color:var(--muted); font-size:12px; margin-top:3px; }
+  h1{ font-size:17px; color:var(--navy); text-align:center; margin:0 0 6px; }
+  label{ font-size:12px; color:var(--muted); margin:14px 0 5px; font-weight:600; display:block; }
+  input{ width:100%; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  input:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px rgba(31,122,140,.15); }
+  .rules{ margin:12px 0 0; padding:10px 12px; background:#f3f7fa; border:1px solid var(--line); border-radius:9px; font-size:12.5px; color:var(--muted); }
+  .rules li{ margin:2px 0; }
+  button{ margin-top:20px; width:100%; background:var(--teal); color:#fff; border:0; border-radius:10px; padding:13px 16px; font-size:15px; font-weight:700; cursor:pointer; }
+  button:hover{ background:var(--teal2); } button:disabled{ opacity:.6; cursor:default; }
+  .msg{ display:none; margin-top:16px; padding:11px 12px; border-radius:9px; font-size:13px; }
+  .msg.err{ display:block; background:#fdecee; border:1px solid #f3c2c8; color:var(--crit); }
+  .msg.ok{ display:block; background:#eaf6ee; border:1px solid #bfe3ca; color:var(--ok); }
+  .foot{ margin-top:18px; text-align:center; } .foot a{ color:var(--teal); font-size:13px; text-decoration:none; } .foot a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><img class="logo" src="/icon.svg" alt="" /><b>Rhéos</b><span>Circul'RH 360</span></div>
+    <h1>Choisir un nouveau mot de passe</h1>
+    <form id="form">
+      <label for="pw">Nouveau mot de passe</label>
+      <input id="pw" type="password" autocomplete="new-password" placeholder="••••••••••" />
+      <label for="pw2">Confirmer le mot de passe</label>
+      <input id="pw2" type="password" autocomplete="new-password" placeholder="••••••••••" />
+      <ul class="rules">
+        <li>Au moins <b>10 caractères</b></li>
+        <li>Au moins <b>une lettre</b> et <b>un chiffre</b></li>
+      </ul>
+      <button id="submit" type="submit">Valider le nouveau mot de passe</button>
+      <div class="msg" id="msg"></div>
+    </form>
+    <div class="foot"><a href="/">Retour à la connexion</a></div>
+  </div>
+<script>
+const $ = id => document.getElementById(id);
+const msg = $("msg"), btn = $("submit");
+function show(kind, text){ msg.className = "msg " + kind; msg.textContent = text; }
+// Token dans le fragment d'URL (#token=…) → jamais envoyé au serveur lors de la navigation.
+const m = location.hash.match(/token=([^&]+)/);
+const TOKEN = m ? decodeURIComponent(m[1]) : "";
+try { history.replaceState(null, "", location.pathname); } catch(e){}
+if (!TOKEN) { show("err", "Lien invalide. Refaites une demande depuis « Mot de passe oublié ? »."); btn.disabled = true; }
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  msg.className = "msg";
+  const pw = $("pw").value, pw2 = $("pw2").value;
+  if (pw !== pw2) { show("err", "Les deux mots de passe ne correspondent pas."); return; }
+  if (pw.length < 10 || !/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) { show("err", "Mot de passe trop faible (≥10 caractères, une lettre et un chiffre)."); return; }
+  btn.disabled = true; btn.textContent = "Validation…";
+  try {
+    const r = await fetch("/api/v1/auth/reset-password", { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ token: TOKEN, password: pw }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { show("err", d.message || "Échec de la réinitialisation."); return; }
+    show("ok", "Mot de passe modifié ✓ Vous allez être redirigé vers la connexion…");
+    setTimeout(() => location.replace("/"), 2200);
+  } catch { show("err", "Service indisponible. Réessayez dans un instant."); }
+  finally { if (msg.className.indexOf("ok") === -1) { btn.disabled = false; btn.textContent = "Valider le nouveau mot de passe"; } }
+});
+</script>
+</body>
+</html>
