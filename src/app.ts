@@ -31,7 +31,7 @@ import { PrivacyService } from "./services-privacy.js";
 import { getDocumentStore } from "./doc-store.js";
 import { RegulatoryService } from "./services-regulatory.js";
 import { SECURITY_HEADERS, RateLimiter } from "./security.js";
-import { getEmailSender } from "./email.js";
+import { getEmailSender, emailMode } from "./email.js";
 import { PasswordResetService } from "./services-reset.js";
 import { uid } from "./store.js";
 import { Ctx, AppError } from "./types.js";
@@ -157,7 +157,7 @@ export function build(repo: Repository = new MemoryRepository()) {
     if (email.includes("@") && resetEmailLimiter.hit(`reset-email:${email}`, Date.now()).allowed) {
       const proto = (req.headers["x-forwarded-proto"] as string || "").split(",")[0].trim() || (isProd ? "https" : "http");
       const origin = `${proto}://${req.headers["host"]}`;
-      void resetSvc.requestReset(email, origin).catch(() => {});
+      void resetSvc.requestReset(email, origin).catch((e) => console.error("[reset] envoi email échoué:", e?.message ?? e));
     }
     return RESET_GENERIC;
   });
@@ -214,7 +214,7 @@ export function build(repo: Repository = new MemoryRepository()) {
   app.get("/health", async (_req, reply) => {
     const db = await repo.ping().catch(() => false);
     if (!db) reply.code(503);
-    return { status: db ? "ok" : "degraded", store: process.env.STORE ?? "memory", db, ts: new Date().toISOString() };
+    return { status: db ? "ok" : "degraded", store: process.env.STORE ?? "memory", db, email: emailMode(), ts: new Date().toISOString() };
   });
 
   // D1
