@@ -72,15 +72,9 @@
     <div class="topbar">
       <h1 id="viewTitle">Tableau de bord</h1>
       <div class="right">
-        <span class="who" id="who">non connecté</span>
-        <input id="loginEmail" class="chip" style="width:140px" placeholder="email" autocomplete="username"/>
-        <input id="loginPw" class="chip" type="password" style="width:120px" placeholder="mot de passe" autocomplete="current-password"/>
-        <button class="chip" onclick="doLogin()">Se connecter</button>
-        <button class="chip" onclick="quick('admin@acme')">Admin</button>
-        <button class="chip" onclick="quick('rh@acme')">RH</button>
-        <button class="chip" onclick="quick('dg@acme')">DG</button>
+        <span class="who" id="who">—</span>
         <button class="chip" style="background:var(--teal);color:#fff;border-color:var(--teal)" onclick="startTour()">🎬 Visite guidée</button>
-        <a class="chip" href="/espace" target="_blank">Espace collaborateur ↗</a>
+        <button class="chip" onclick="logout()">Déconnexion</button>
       </div>
     </div>
     <div class="content" id="content"></div>
@@ -146,16 +140,8 @@ async function api(path, method="GET", body){
   return d;
 }
 function toast(msg, err=false){ const t=$("toast"); t.textContent=msg; t.className="toast show"+(err?" err":""); setTimeout(()=>t.className="toast",2600); }
-function need(){ if(!S.token){ toast("Connecte-toi d'abord (Admin/RH/DG en haut).",true); throw new Error("auth"); } }
-
-async function login(email){ const d=await api("/auth/login","POST",{email,password:"secret"}); S.token=d.token; S.user=email; $("who").textContent="connecté : "+email; }
-async function quick(email){ try{ await login(email); toast("Connecté : "+email); }catch(e){ toast(e.message,true);} }
-async function doLogin(){
-  const email=$("loginEmail").value.trim(), password=$("loginPw").value;
-  if(!email||!password){ toast("Email et mot de passe requis",true); return; }
-  try{ const d=await api("/auth/login","POST",{email,password}); S.token=d.token; S.user=email; $("who").textContent="connecté : "+email; $("loginPw").value=""; toast("Connecté : "+email); }
-  catch(e){ toast("Connexion refusée : "+e.message,true); }
-}
+function need(){ if(!S.token){ logout(); throw new Error("auth"); } }
+function logout(){ ["rheos_token","rheos_user","rheos_redirect"].forEach(k=>localStorage.removeItem(k)); location.replace("/"); }
 
 /* ---------- Rendu générique ---------- */
 function kv(obj){ return `<div class="kv">${Object.entries(obj).map(([k,v])=>`<div class="k">${k}</div><div class="v">${fmt(v)}</div>`).join("")}</div>`; }
@@ -419,9 +405,15 @@ async function doAddMandate(){ try{ if(!S.employmentId) throw new Error("Fais d'
 async function doPlanMeeting(){ try{ const agenda=$("mtAgenda").value.split(",").map(s=>s.trim()).filter(Boolean); const d=await api(`/companies/${S.companyId}/cse/meetings`,"POST",{date:$("mtDate").value,type:$("mtType").value,agenda}); S.meetingId=d.id; toast("Réunion planifiée ✓"); VIEWS.meetings(); }catch(e){ toast(e.message,true);} }
 async function doMinutes(){ try{ if(!S.meetingId) throw new Error("Planifie d'abord une réunion"); await api(`/cse/meetings/${S.meetingId}/minutes`,"POST",{minutes:$("mtMinutes").value}); toast("PV enregistré ✓"); VIEWS.meetings(); }catch(e){ toast(e.message,true);} }
 
+// Garde d'accès : la console exige un jeton (déposé par la page de connexion « / »).
+// Confort UX ; la sécurité reste côté API (deny by default sur /api/v1).
+S.token = localStorage.getItem("rheos_token");
+if(!S.token){ location.replace("/"); }
+S.user = localStorage.getItem("rheos_user") || "";
+$("who").textContent = S.user ? "connecté : "+S.user : "connecté";
+
 buildNav();
-VIEWS.dashboard=VIEWS.dashboard; // noop
-panel("Bienvenue", `<p class="desc">Suite RH Rhéos — connecte-toi (Admin/RH/DG en haut à droite), puis déroule les 9 blocs à gauche.</p>
+panel("Bienvenue", `<p class="desc">Suite RH Rhéos — déroulez les 9 blocs à gauche pour commencer.</p>
   <div class="banner">Parcours conseillé : <b>Entreprise & Référentiel → Créer une société</b>, puis <b>Ajouter un établissement</b>, puis <b>Gestion administrative → Éditer une embauche</b>, puis <b>Signer le contrat</b> (rôle DG).</div>`);
 </script>
 

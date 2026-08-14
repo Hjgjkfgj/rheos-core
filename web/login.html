@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Rhéos — Connexion</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<style>
+  :root{ --navy:#11223b; --navy2:#0d1a2e; --teal:#1f7a8c; --teal2:#2b95a8; --line:#e2e7ee; --ink:#1c2530; --muted:#6b7785; --crit:#b00020; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  body{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    background:radial-gradient(1200px 600px at 20% -10%, #1b3357 0%, var(--navy) 45%, var(--navy2) 100%); }
+  .card{ width:100%; max-width:400px; background:#fff; border-radius:16px; padding:36px 32px 28px;
+    box-shadow:0 24px 60px rgba(4,12,26,.45); }
+  .brand{ text-align:center; margin-bottom:26px; }
+  .brand .logo{ width:52px; height:52px; margin:0 auto 10px; display:block; }
+  .brand b{ display:block; color:var(--navy); font-size:28px; letter-spacing:.5px; }
+  .brand span{ display:block; color:var(--muted); font-size:12px; margin-top:3px; }
+  form{ display:flex; flex-direction:column; gap:4px; }
+  label{ font-size:12px; color:var(--muted); margin:12px 0 5px; font-weight:600; }
+  input{ width:100%; padding:12px 12px; border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  input:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 3px rgba(31,122,140,.15); }
+  button{ margin-top:22px; background:var(--teal); color:#fff; border:0; border-radius:10px;
+    padding:13px 16px; font-size:15px; font-weight:700; cursor:pointer; transition:.15s; }
+  button:hover{ background:var(--teal2); }
+  button:disabled{ opacity:.6; cursor:default; }
+  .err{ display:none; margin-top:16px; background:#fdecee; border:1px solid #f3c2c8; color:var(--crit);
+    padding:10px 12px; border-radius:9px; font-size:13px; }
+  .err.show{ display:block; }
+  .foot{ margin-top:20px; text-align:center; }
+  .foot a{ color:var(--teal); font-size:13px; cursor:pointer; text-decoration:none; }
+  .foot a:hover{ text-decoration:underline; }
+  .hint{ display:none; margin-top:12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.5; }
+  .hint.show{ display:block; }
+  .legal{ margin-top:22px; text-align:center; font-size:11px; color:#9aa6b2; }
+  .legal a{ color:#9aa6b2; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <img class="logo" src="/icon.svg" alt="" />
+      <b>Rhéos</b>
+      <span>le Cognitive OS des RH</span>
+    </div>
+    <form id="form" autocomplete="on">
+      <label for="email">Identifiant</label>
+      <input id="email" name="email" type="email" autocomplete="username" required
+        placeholder="prenom.nom@entreprise.fr" autofocus />
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required
+        placeholder="••••••••" />
+      <button id="submit" type="submit">Se connecter</button>
+      <div class="err" id="err"></div>
+    </form>
+    <div class="foot"><a id="forgot">Mot de passe oublié ?</a></div>
+    <div class="hint" id="hint">Pour réinitialiser votre mot de passe, contactez l'administrateur
+      de votre entreprise. Aucune inscription n'est possible en ligne : les comptes sont créés par
+      votre service RH.</div>
+    <div class="legal"><a href="/confidentialite">Confidentialité &amp; mentions légales</a></div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const err = $("err"), btn = $("submit");
+function showErr(msg){ err.textContent = msg; err.classList.add("show"); }
+function clearErr(){ err.classList.remove("show"); }
+
+// Déjà connecté ? on route directement vers l'espace mémorisé (confort ; la sécurité reste côté API).
+const known = localStorage.getItem("rheos_redirect");
+if (localStorage.getItem("rheos_token") && known) location.replace(known);
+
+$("forgot").addEventListener("click", () => $("hint").classList.toggle("show"));
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  clearErr();
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  if (!email || !password){ showErr("Identifiants incorrects."); return; }
+  btn.disabled = true; btn.textContent = "Connexion…";
+  try {
+    const r = await fetch("/api/v1/auth/login", {
+      method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    if (r.status === 429){ showErr("Trop de tentatives. Réessayez dans quelques instants."); return; }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.token){ showErr("Identifiants incorrects."); return; }
+    // Session persistante (localStorage). Le token porte le tenant + les rôles (signé côté serveur).
+    localStorage.setItem("rheos_token", d.token);
+    localStorage.setItem("rheos_user", email);
+    localStorage.setItem("rheos_redirect", d.redirect || "/console");
+    location.replace(d.redirect || "/console");
+  } catch {
+    showErr("Service indisponible. Réessayez dans un instant.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Se connecter";
+  }
+});
+</script>
+</body>
+</html>
