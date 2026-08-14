@@ -1,9 +1,9 @@
 // Crée un compte d'authentification PERSISTANT (table AuthAccount).
-// Le mot de passe est lu dans la variable d'environnement USER_PASSWORD —
-// JAMAIS en argument (visible dans l'historique/ps), JAMAIS affiché ni loggé.
+// Le mot de passe est lu dans une variable d'environnement (ADMIN_PASSWORD ou
+// USER_PASSWORD) — JAMAIS en argument (visible dans l'historique/ps), JAMAIS affiché ni loggé.
 //
 // Usage :
-//   STORE=prisma DATABASE_URL="<admin-url>" USER_PASSWORD='…' \
+//   STORE=prisma DATABASE_URL="<admin-url>" ADMIN_PASSWORD='…' \
 //     npm run user:create -- --email admin@moncompte.fr --role TenantAdmin --tenant RHEOS
 //
 // Options :
@@ -37,14 +37,14 @@ async function main() {
   const roleNames = String(args.role ?? "").split(",").map((r) => r.trim()).filter(Boolean);
   const personId = args.person ? String(args.person) : undefined;
   const mustChangePassword = !!args["must-change"];
-  const password = process.env.USER_PASSWORD ?? "";
+  const password = process.env.ADMIN_PASSWORD ?? process.env.USER_PASSWORD ?? "";
 
   const errors: string[] = [];
   if (!email) errors.push("--email requis");
   if (!tenantId) errors.push("--tenant requis");
   if (!roleNames.length) errors.push("--role requis (ex. TenantAdmin)");
-  if (!password) errors.push("USER_PASSWORD (variable d'environnement) requis");
-  if (password && password.length < 10) errors.push("USER_PASSWORD trop court (≥ 10 caractères)");
+  if (!password) errors.push("ADMIN_PASSWORD (ou USER_PASSWORD) — variable d'environnement — requis");
+  if (password && password.length < 10) errors.push("mot de passe trop court (≥ 10 caractères)");
   const unknown = roleNames.filter((r) => !STANDARD_ROLES.includes(r));
   if (unknown.length) errors.push(`rôle(s) inconnu(s) : ${unknown.join(", ")} — attendus : ${STANDARD_ROLES.join(", ")}`);
   if (errors.length) { console.error("✗ " + errors.join("\n✗ ")); process.exit(1); }

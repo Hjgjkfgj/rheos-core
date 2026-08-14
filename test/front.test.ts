@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { build } from "../src/app.js";
 import { hrManager, tenantAdmin, setupHire } from "./helpers.js";
 import { signToken } from "../src/jwt.js";
+import { MemoryRepository } from "../src/repository.js";
+import { AuthService } from "../src/auth-service.js";
 
 describe("Porte d'entrée unique (Lot UI-1)", () => {
   it("la racine sert UNIQUEMENT la page de connexion (pas la console)", async () => {
@@ -24,8 +26,11 @@ describe("Porte d'entrée unique (Lot UI-1)", () => {
   });
 
   it("le login renvoie une redirection par rôle (profil de gestion → console)", async () => {
-    const app = build();
-    const admin = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "admin@acme", password: "secret" } });
+    // Compte créé à la volée (pas de dépendance aux comptes de démonstration, Lot UI-1c).
+    const repo = new MemoryRepository();
+    await new AuthService(repo).createAccount({ email: "admin@test.local", tenantId: "ACME", roleNames: ["TenantAdmin"], password: "phrase admin test" });
+    const app = build(repo);
+    const admin = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "admin@test.local", password: "phrase admin test" } });
     expect(admin.statusCode).toBe(200);
     expect(admin.json().redirect).toBe("/console");
     expect(admin.json().token).toBeTruthy();

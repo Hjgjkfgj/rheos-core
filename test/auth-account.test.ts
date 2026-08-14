@@ -59,10 +59,34 @@ describe("Fondation d'identité — AuthAccount", () => {
       .rejects.toMatchObject({ code: "already_exists" });
   });
 
-  it("repli : les comptes de démonstration en mémoire fonctionnent encore", async () => {
-    const app: any = build(); // MemoryRepository vide → aucun compte persistant → repli seed
-    const res = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "admin@acme", password: "secret" } });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().redirect).toBe("/console");
+  it("compte inexistant → 401 (aucun accès implicite, pas d'énumération)", async () => {
+    const repo = new MemoryRepository();
+    const app: any = build(repo); // aucun compte persistant créé
+    const res = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "inconnu@corp.fr", password: "peu importe" } });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("compte désactivé (disabled) → connexion refusée (401)", async () => {
+    const repo = new MemoryRepository();
+    const auth = new AuthService(repo);
+    const acc = await auth.createAccount({ email: "off@corp.fr", tenantId: "CORP", roleNames: ["HrManager"], password: "phrase de passe" });
+    await repo.updateAuthAccount(acc.id, { disabled: true });
+    const app: any = build(repo);
+    const res = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "off@corp.fr", password: "phrase de passe" } });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("EN PRODUCTION : les comptes de démonstration ne sont pas seedés → connexion refusée (Lot UI-1c)", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const app: any = build(new MemoryRepository());
+      for (const email of ["rh@acme", "admin@acme", "dg@acme", "admin@demo", "dg@demo"]) {
+        const res = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email, password: "secret" } });
+        expect(res.statusCode, email).toBe(401);
+      }
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
   });
 });
