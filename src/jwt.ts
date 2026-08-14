@@ -12,6 +12,8 @@ export interface TokenPayload {
   roles: string[];
   personId?: string;
   scopes?: Scope[];   // périmètres ABAC (TENANT/LEGAL_ENTITY/ESTABLISHMENT/ORG_UNIT/SELF)
+  tv?: number;        // tokenVersion du compte : invalide les sessions au reset (UI-1b)
+  mustChangePassword?: boolean; // mot de passe temporaire → changement forcé
   iat?: number;
   exp?: number;
 }

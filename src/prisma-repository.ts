@@ -15,7 +15,7 @@ import {
   Risk, WorkAccident, Competency, Training, CareerReview, Budget, Negotiation,
   Agreement, WorkforceSnapshot, LeaveLedgerEntry, AiAuditLog,
   Address, BankAccount, SensitiveIdentifier, AuditLog, ChangeRequest,
-  RegulatorySource, RegulatoryText, RegulatoryRule,
+  RegulatorySource, RegulatoryText, RegulatoryRule, AuthAccount,
 } from "./types.js";
 
 // --- ÉCRITURE : domaine (string) → Prisma (DateTime) -------------------------
@@ -228,4 +228,10 @@ export class PrismaRepository implements Repository {
   listRegulatoryTextVersions(idcc: string) { return this.glob((px) => px.regulatoryText.findMany({ where: { idcc }, orderBy: { version: "asc" } })) as any; }
   createRegulatoryRule(r: RegulatoryRule) { return this.glob((px) => px.regulatoryRule.create({ data: norm(r) })) as any; }
   listRegulatoryRules(idcc: string) { return this.glob((px) => px.regulatoryRule.findMany({ where: { idcc } })) as any; }
+
+  // Identité / authentification — table PLATEFORME (hors RLS) : glob() sans contexte tenant.
+  getAuthAccountByEmail(email: string) { return this.glob((px) => px.authAccount.findUnique({ where: { email } })) as any; }
+  getAuthAccountById(id: string) { return this.glob((px) => px.authAccount.findUnique({ where: { id } })) as any; }
+  createAuthAccount(a: AuthAccount) { return this.glob((px) => px.authAccount.create({ data: norm(a as any) })) as any; }
+  updateAuthAccount(id: string, patch: Partial<AuthAccount>) { return this.glob((px) => px.authAccount.update({ where: { id }, data: norm(patch as any) })) as any; }
 }

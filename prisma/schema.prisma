@@ -1096,3 +1096,24 @@ model RegulatoryRule {
 
   @@index([idcc, type])
 }
+
+// =============================== IDENTITÉ / AUTH (Lot UI-1b) =================
+// Compte d'authentification. Table PLATEFORME : PAS de RLS tenant (non listée dans
+// les rls.sql) car le login résout un email GLOBAL → tenant, avant tout contexte
+// tenant. Lue/écrite par l'app via une transaction simple (glob), comme le
+// référentiel réglementaire. `tokenVersion` invalide toutes les sessions au reset.
+model AuthAccount {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  tenantId           String
+  personId           String?
+  passwordHash       String
+  roleNames          String[] @default([])
+  scopes             Json?
+  tokenVersion       Int      @default(0)
+  mustChangePassword Boolean  @default(false)
+  disabled           Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@index([tenantId])
+}
